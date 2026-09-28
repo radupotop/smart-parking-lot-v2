@@ -1,6 +1,6 @@
 """Tests for the parking app."""
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
 from django.contrib import admin as django_admin
@@ -22,6 +22,28 @@ from parking.models import (
     SpotTypeVehicleCompatibility,
     Vehicle,
     VehicleType,
+)
+from parking.pricing import (
+    EARLY_BIRD_ENTRY_WINDOW,
+    EARLY_BIRD_EXIT_WINDOW,
+    EARLY_BIRD_RATE,
+    LOYALTY_DISCOUNTS,
+    NIGHT_OWL_ENTRY_WINDOW,
+    NIGHT_OWL_EXIT_WINDOW,
+    NIGHT_OWL_RATE,
+    PEAK_MULTIPLIER,
+    PEAK_WINDOWS,
+    STANDARD_FIRST_HOUR_RATE,
+    STANDARD_HOURLY_BASE_RATES,
+    STANDARD_SECOND_HOUR_RATE,
+    STANDARD_SUBSEQUENT_HOUR_RATE,
+    TimeWindow,
+    VEHICLE_MULTIPLIERS,
+    contains_time,
+    interval_overlaps,
+    is_weekday_excluding_public_holidays,
+    quantize_currency,
+    window_for_date,
 )
 
 
@@ -269,6 +291,127 @@ class ParkingSessionAuditModelTests(TestCase):
             str(evaluation),
             f"Standard evaluation for session {session.pk}",
         )
+
+
+class PricingConstantsAndHelpersTests(TestCase):
+    def test_vehicle_multipliers_use_prd_values_as_decimals(self) -> None:
+        self.assertEqual(
+            VEHICLE_MULTIPLIERS,
+            {
+                VehicleType.MOTORCYCLE: Decimal("0.8"),
+                VehicleType.CAR: Decimal("1.0"),
+                VehicleType.BUS: Decimal("2.0"),
+            },
+        )
+        self.assertTrue(
+            all(isinstance(amount, Decimal) for amount in VEHICLE_MULTIPLIERS.values()),
+        )
+
+    def test_loyalty_discounts_use_prd_values_as_decimals(self) -> None:
+        self.assertEqual(
+            LOYALTY_DISCOUNTS,
+            {
+                LoyaltyTier.NONE: Decimal("0"),
+                LoyaltyTier.SILVER: Decimal("0.10"),
+                LoyaltyTier.GOLD: Decimal("0.20"),
+                LoyaltyTier.PLATINUM: Decimal("0.30"),
+            },
+        )
+        self.assertTrue(
+            all(isinstance(amount, Decimal) for amount in LOYALTY_DISCOUNTS.values()),
+        )
+
+    def test_base_rates_peak_multiplier_and_special_rates_match_prd(self) -> None:
+        self.assertEqual(STANDARD_FIRST_HOUR_RATE, Decimal("5.00"))
+        self.assertEqual(STANDARD_SECOND_HOUR_RATE, Decimal("3.00"))
+        self.assertEqual(STANDARD_SUBSEQUENT_HOUR_RATE, Decimal("2.00"))
+        self.assertEqual(
+            STANDARD_HOURLY_BASE_RATES,
+            (
+                Decimal("5.00"),
+                Decimal("3.00"),
+                Decimal("2.00"),
+            ),
+        )
+        self.assertEqual(PEAK_MULTIPLIER, Decimal("1.5"))
+        self.assertEqual(EARLY_BIRD_RATE, Decimal("15.00"))
+        self.assertEqual(NIGHT_OWL_RATE, Decimal("8.00"))
+
+    def test_time_windows_use_inclusive_starts_and_exclusive_ends(self) -> None:
+        morning_peak = PEAK_WINDOWS[0]
+
+        self.assertTrue(contains_time(time(7, 0), morning_peak))
+        self.assertTrue(contains_time(time(9, 59, 59), morning_peak))
+        self.assertFalse(contains_time(time(10, 0), morning_peak))
+        self.assertTrue(contains_time(time(6, 0), EARLY_BIRD_ENTRY_WINDOW))
+        self.assertFalse(contains_time(time(9, 0), EARLY_BIRD_ENTRY_WINDOW))
+        self.assertTrue(contains_time(time(15, 30), EARLY_BIRD_EXIT_WINDOW))
+        self.assertFalse(contains_time(time(19, 0), EARLY_BIRD_EXIT_WINDOW))
+        self.assertTrue(contains_time(time(18, 0), NIGHT_OWL_ENTRY_WINDOW))
+        self.assertTrue(contains_time(time.max, NIGHT_OWL_ENTRY_WINDOW))
+        self.assertTrue(contains_time(time(5, 0), NIGHT_OWL_EXIT_WINDOW))
+        self.assertFalse(contains_time(time(10, 0), NIGHT_OWL_EXIT_WINDOW))
+
+    def test_datetime_interval_overlap_uses_exclusive_ends(self) -> None:
+        window_start = datetime(2026, 9, 28, 7, 0, tzinfo=timezone.utc)
+        window_end = datetime(2026, 9, 28, 10, 0, tzinfo=timezone.utc)
+
+        self.assertTrue(
+            interval_overlaps(
+                datetime(2026, 9, 28, 6, 30, tzinfo=timezone.utc),
+                datetime(2026, 9, 28, 7, 30, tzinfo=timezone.utc),
+                window_start,
+                window_end,
+            ),
+        )
+        self.assertFalse(
+            interval_overlaps(
+                datetime(2026, 9, 28, 6, 0, tzinfo=timezone.utc),
+                datetime(2026, 9, 28, 7, 0, tzinfo=timezone.utc),
+                window_start,
+                window_end,
+            ),
+        )
+        self.assertFalse(
+            interval_overlaps(
+                datetime(2026, 9, 28, 10, 0, tzinfo=timezone.utc),
+                datetime(2026, 9, 28, 11, 0, tzinfo=timezone.utc),
+                window_start,
+                window_end,
+            ),
+        )
+
+    def test_window_for_date_preserves_timezone_context(self) -> None:
+        start, end = window_for_date(
+            date(2026, 9, 28),
+            TimeWindow(time(16, 0), time(19, 0)),
+            tzinfo=timezone.utc,
+        )
+
+        self.assertEqual(start, datetime(2026, 9, 28, 16, 0, tzinfo=timezone.utc))
+        self.assertEqual(end, datetime(2026, 9, 28, 19, 0, tzinfo=timezone.utc))
+
+    def test_weekday_detection_excludes_weekends_and_public_holidays(self) -> None:
+        monday = date(2026, 9, 28)
+        saturday = date(2026, 10, 3)
+
+        self.assertTrue(is_weekday_excluding_public_holidays(monday))
+        self.assertFalse(is_weekday_excluding_public_holidays(saturday))
+
+        PublicHoliday.objects.create(date=monday, name="Observed Holiday")
+
+        self.assertFalse(is_weekday_excluding_public_holidays(monday))
+        self.assertFalse(
+            is_weekday_excluding_public_holidays(
+                datetime(2026, 9, 28, 8, 0, tzinfo=timezone.utc),
+            ),
+        )
+
+    def test_currency_quantization_uses_decimal_cents(self) -> None:
+        self.assertEqual(quantize_currency(Decimal("12")), Decimal("12.00"))
+        self.assertEqual(quantize_currency(Decimal("12.345")), Decimal("12.35"))
+        self.assertEqual(quantize_currency(Decimal("12.344")), Decimal("12.34"))
+        self.assertEqual(quantize_currency(Decimal("12.345")).as_tuple().exponent, -2)
 
 
 class ParkingAdminConfigurationTests(SimpleTestCase):

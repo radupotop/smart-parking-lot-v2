@@ -62,3 +62,7 @@ Mon, 28 Sep 2026 21:28:08 +0100
 Mon, 28 Sep 2026 21:36:01 +0100
 > Let's carry on with Task-2, each of the sub-task should run in a sub-agent, with a commit after each; they should run sequentially - not in parallel; stop after each sub-task with a short summary;
 ----
+
+Mon, 28 Sep 2026 21:42:46 +0100
+> run the verifications inside the containers, not on the host directly
+----

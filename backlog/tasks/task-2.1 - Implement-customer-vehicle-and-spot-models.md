@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-28 16:02'
-updated_date: '2026-09-28 20:39'
+updated_date: '2026-09-28 20:44'
 labels:
   - backend
   - django
@@ -49,10 +49,12 @@ The SRS splits the relational parking domain into customers, vehicles, spot type
 
 <!-- SECTION:NOTES:BEGIN -->
 Implemented Customer, Vehicle, ParkingSpot, and SpotTypeVehicleCompatibility with TextChoices, uniqueness constraints, timestamps where specified by ERD, initial migration, and focused ORM tests. Verified with UV_CACHE_DIR=/tmp/uv-cache uv run python manage.py makemigrations --check --dry-run, check, and test from src/.
+
+Correction: re-ran verification inside Podman Compose test containers after rebuilding the image. Passed: podman compose --profile tools run --rm test uv run python manage.py makemigrations --check --dry-run; podman compose --profile tools run --rm test uv run python manage.py check; podman compose --profile tools run --rm test.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Implemented foundational parking domain models, generated the initial migration, and added focused model tests. Verification passed: makemigrations --check --dry-run reported no changes, Django system check reported no issues, and uv run python manage.py test passed 7 tests.
+Implemented foundational parking domain models, generated the initial migration, and added focused model tests. Verification passed inside Podman Compose test containers after rebuilding the image: makemigrations --check --dry-run reported no changes, Django system check reported no issues, and the containerized Django test suite passed 7 tests.
 <!-- SECTION:FINAL_SUMMARY:END -->

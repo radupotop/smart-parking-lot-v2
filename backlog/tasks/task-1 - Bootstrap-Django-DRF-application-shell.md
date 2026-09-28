@@ -1,10 +1,11 @@
 ---
 id: TASK-1
 title: Bootstrap Django DRF application shell
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-09-28 15:51'
-updated_date: '2026-09-28 16:14'
+updated_date: '2026-09-28 18:50'
 labels:
   - backend
   - django

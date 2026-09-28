@@ -34,3 +34,7 @@ Mon, 28 Sep 2026 17:13:23 +0100
 Mon, 28 Sep 2026 19:42:50 +0100
 > Start with Task-0 the bootstrap environment; do it in a subagent
 ----
+
+Mon, 28 Sep 2026 19:49:53 +0100
+> OK let's carry on with Task-1, each of the sub-task should run in a sub-agent, with a commit after each; they should run sequentially - not in parallel;
+----

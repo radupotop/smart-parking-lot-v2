@@ -11,3 +11,4 @@ This is going to be a simple Django DRF app:
     * api tests to be added later
 * it will run in a Podman container
     * the database file should be mounted from the local filesystem
+    * there must be separate services for the main app, testing, migration

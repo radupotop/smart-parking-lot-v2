@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-09-28 15:51'
-updated_date: '2026-09-28 19:03'
+updated_date: '2026-09-28 20:01'
 labels:
   - backend
   - django
@@ -38,11 +38,11 @@ SRS2 calls for a simple Django DRF application backed by SQLite, with the Django
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Completed all three child tasks: TASK-1.1 project/app shell, TASK-1.2 SQLite/DRF/admin/test runner, and TASK-1.3 Podman runtime. Final parent verification passed with uv run python manage.py check, uv run python manage.py test, Podman image build, mounted SQLite migration, and containerized tests.
+Completed all five child tasks: TASK-1.1 project/app shell, TASK-1.2 SQLite/DRF/admin/test runner, TASK-1.3 Podman runtime, TASK-1.4 compose runtime workflow, and TASK-1.5 Python 3.14/Django 6.1 runtime upgrade. Final verification passed with uv lock consistency, uv Django check/test commands, Podman image build, containerized Django check, and Podman Compose config for the mounted SQLite runtime.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Bootstrapped the Django DRF application shell with SQLite, admin, tests, and Podman runtime support. Verified host Django check/test commands plus Podman build, mounted SQLite migration, and containerized tests.
+Bootstrapped the Django DRF application shell with SQLite, admin, tests, Podman runtime support, a compose workflow, and the requested Python 3.14 slim / Django 6.1 stack. Verified host uv checks/tests plus Podman build, containerized Django check, and compose configuration.
 <!-- SECTION:FINAL_SUMMARY:END -->

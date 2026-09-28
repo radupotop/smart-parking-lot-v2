@@ -18,3 +18,11 @@ Mon, 28 Sep 2026 16:38:10 +0100
 Mon, 28 Sep 2026 16:49:56 +0100
 > Create the overarching tasks in the backlog; add implementation details according to the SRS docs.
 ----
+
+Mon, 28 Sep 2026 16:59:31 +0100
+> $prompt-log
+----
+
+Mon, 28 Sep 2026 17:01:50 +0100
+> Add the required sub-tasks in the backlog. also the ticket about Podman containers seems to be missing;
+----

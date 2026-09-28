@@ -11,7 +11,7 @@ Run the environment bootstrap command from this directory:
 uv venv --seed --clear --no-managed-python
 ```
 
-The command creates a local `.venv/` using an already-installed Python
+The command creates a local `.venv/` using an already-installed Python 3.14
 interpreter rather than a uv-managed Python installation.
 
 ## Tests

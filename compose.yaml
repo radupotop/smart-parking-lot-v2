@@ -1,5 +1,5 @@
 services:
-  app:
+  app: &django-service
     image: smart-parking-lot
     build:
       context: .
@@ -10,3 +10,9 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data:Z
+  test:
+    <<: *django-service
+    profiles:
+      - tools
+    ports: []
+    command: ["uv", "run", "python", "manage.py", "test"]

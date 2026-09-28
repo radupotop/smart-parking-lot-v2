@@ -38,16 +38,23 @@ development server on <http://localhost:8000>, sets
 `DJANGO_SQLITE_PATH=/app/data/db.sqlite3`, and mounts root `data/` to
 `/app/data` so SQLite data persists outside the container.
 
-Run migrations against the mounted database:
+Run migrations against the mounted database through the one-off test/manage
+service:
 
 ```bash
-podman compose run --rm app uv run python manage.py migrate
+podman compose run --rm test uv run python manage.py migrate
 ```
 
-Run tests through the compose service:
+Run tests through the dedicated test service:
 
 ```bash
-podman compose run --rm app uv run python manage.py test
+podman compose run --rm test
+```
+
+Run other Django management commands from the same container shape:
+
+```bash
+podman compose run --rm test uv run python manage.py check
 ```
 
 Stop the development server with `Ctrl+C`, or from another shell:
@@ -58,45 +65,10 @@ podman compose down
 
 ### Single-container commands
 
-Build the development image from the repository root:
+The compose services replace the manual `podman run ... uv run python
+manage.py ...` commands. Build the image directly only when you need to inspect
+the image outside the compose workflow:
 
 ```bash
 podman build -t smart-parking-lot -f Containerfile .
-```
-
-The container uses `/app/data/db.sqlite3` by default. Mount a host directory
-there so SQLite data persists outside the container:
-
-```bash
-mkdir -p data
-podman run --rm -it \
-  -p 8000:8000 \
-  -v ./data:/app/data:Z \
-  smart-parking-lot
-```
-
-Run migrations against the mounted database:
-
-```bash
-podman run --rm -it \
-  -v ./data:/app/data:Z \
-  smart-parking-lot \
-  uv run python manage.py migrate
-```
-
-Run tests in the container:
-
-```bash
-podman run --rm -it smart-parking-lot uv run python manage.py test
-```
-
-Start the development server with an explicit database path if needed:
-
-```bash
-podman run --rm -it \
-  -p 8000:8000 \
-  -e DJANGO_SQLITE_PATH=/app/data/db.sqlite3 \
-  -v ./data:/app/data:Z \
-  smart-parking-lot \
-  uv run python manage.py runserver 0.0.0.0:8000
 ```

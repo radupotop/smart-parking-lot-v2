@@ -50,3 +50,7 @@ Mon, 28 Sep 2026 20:48:15 +0100
 Mon, 28 Sep 2026 20:51:06 +0100
 > OK let's carry on with the remaining sub-tasks of Task-1. Each sub-task should run in a sub-agent, with a commit after each; they should run sequentially - not in parallel;
 ----
+
+Mon, 28 Sep 2026 21:06:25 +0100
+> In compose.yaml, add a podman service for running the tests, so that all the current commands which run manually from the CLI (e.g. `podman run --rm smart-parking-lot uv run python manage.py ...`) can be run from that container instead;
+----

@@ -27,10 +27,12 @@ from parking.pricing import (
     EARLY_BIRD_ENTRY_WINDOW,
     EARLY_BIRD_EXIT_WINDOW,
     EARLY_BIRD_RATE,
+    EarlyBirdPolicy,
     LOYALTY_DISCOUNTS,
     NIGHT_OWL_ENTRY_WINDOW,
     NIGHT_OWL_EXIT_WINDOW,
     NIGHT_OWL_RATE,
+    NightOwlPolicy,
     PEAK_MULTIPLIER,
     PEAK_WINDOWS,
     STANDARD_FIRST_HOUR_RATE,
@@ -594,6 +596,290 @@ class StandardHourlyPolicyTests(TestCase):
         self.assertEqual(motorcycle_result.details["hours"][0]["multiplier"], "0.80")
         self.assertEqual(bus_result.amount, Decimal("10.00"))
         self.assertEqual(bus_result.details["hours"][0]["multiplier"], "2.00")
+
+
+class SpecialFlatRatePolicyTests(TestCase):
+    def setUp(self) -> None:
+        self.early_bird = EarlyBirdPolicy()
+        self.night_owl = NightOwlPolicy()
+        self.spot = ParkingSpot.objects.create(
+            level=1,
+            number="SPC-01",
+            spot_type=SpotType.COMPACT,
+        )
+        self.registration_counter = 0
+
+    def create_session(
+        self,
+        entered_at: datetime,
+        exited_at: datetime | None,
+        loyalty_tier: str = LoyaltyTier.NONE,
+        vehicle_type: str = VehicleType.CAR,
+    ) -> ParkingSession:
+        self.registration_counter += 1
+        vehicle = Vehicle.objects.create(
+            registration=f"SPC-{self.registration_counter:03d}",
+            vehicle_type=vehicle_type,
+        )
+        return ParkingSession.objects.create(
+            vehicle=vehicle,
+            spot=self.spot,
+            entered_at=entered_at,
+            exited_at=exited_at,
+            status=SessionStatus.CLOSED if exited_at else SessionStatus.OPEN,
+            loyalty_tier_snapshot=loyalty_tier,
+        )
+
+    def test_early_bird_applies_only_inside_same_day_windows(self) -> None:
+        starts_at_open = self.create_session(
+            datetime(2026, 9, 28, 6, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 15, 30, tzinfo=timezone.utc),
+        )
+        ends_before_close = self.create_session(
+            datetime(2026, 9, 28, 8, 59, 59, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 18, 59, 59, tzinfo=timezone.utc),
+        )
+        starts_at_close = self.create_session(
+            datetime(2026, 9, 28, 9, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 15, 30, tzinfo=timezone.utc),
+        )
+        exits_at_close = self.create_session(
+            datetime(2026, 9, 28, 6, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 19, 0, tzinfo=timezone.utc),
+        )
+        exits_next_day = self.create_session(
+            datetime(2026, 9, 28, 6, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 29, 5, 0, tzinfo=timezone.utc),
+        )
+
+        self.assertTrue(self.early_bird.evaluate(starts_at_open).applicable)
+        self.assertTrue(self.early_bird.evaluate(ends_before_close).applicable)
+        self.assertEqual(
+            self.early_bird.evaluate(starts_at_close).details["reason"],
+            "entry_time_outside_window",
+        )
+        self.assertEqual(
+            self.early_bird.evaluate(exits_at_close).details["reason"],
+            "exit_time_outside_window",
+        )
+        self.assertEqual(
+            self.early_bird.evaluate(exits_next_day).details["reason"],
+            "not_same_calendar_day",
+        )
+
+    def test_night_owl_applies_only_inside_consecutive_overnight_windows(self) -> None:
+        starts_at_open = self.create_session(
+            datetime(2026, 9, 28, 18, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 29, 5, 0, tzinfo=timezone.utc),
+        )
+        ends_before_close = self.create_session(
+            datetime(2026, 9, 28, 23, 59, 59, tzinfo=timezone.utc),
+            datetime(2026, 9, 29, 9, 59, 59, tzinfo=timezone.utc),
+        )
+        starts_before_open = self.create_session(
+            datetime(2026, 9, 28, 17, 59, 59, tzinfo=timezone.utc),
+            datetime(2026, 9, 29, 5, 0, tzinfo=timezone.utc),
+        )
+        exits_at_close = self.create_session(
+            datetime(2026, 9, 28, 18, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 29, 10, 0, tzinfo=timezone.utc),
+        )
+        exits_same_day = self.create_session(
+            datetime(2026, 9, 28, 18, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 23, 0, tzinfo=timezone.utc),
+        )
+        exits_two_days_later = self.create_session(
+            datetime(2026, 9, 28, 18, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 30, 5, 0, tzinfo=timezone.utc),
+        )
+
+        self.assertTrue(self.night_owl.evaluate(starts_at_open).applicable)
+        self.assertTrue(self.night_owl.evaluate(ends_before_close).applicable)
+        self.assertEqual(
+            self.night_owl.evaluate(starts_before_open).details["reason"],
+            "entry_time_outside_window",
+        )
+        self.assertEqual(
+            self.night_owl.evaluate(exits_at_close).details["reason"],
+            "exit_time_outside_window",
+        )
+        self.assertEqual(
+            self.night_owl.evaluate(exits_same_day).details["reason"],
+            "not_next_consecutive_calendar_day",
+        )
+        self.assertEqual(
+            self.night_owl.evaluate(exits_two_days_later).details["reason"],
+            "stay_longer_than_24_hours",
+        )
+
+    def test_special_policies_are_not_applicable_for_stays_longer_than_24_hours(self) -> None:
+        early_bird_session = self.create_session(
+            datetime(2026, 9, 28, 8, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 29, 8, 0, 1, tzinfo=timezone.utc),
+        )
+        night_owl_session = self.create_session(
+            datetime(2026, 9, 28, 18, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 29, 18, 0, 1, tzinfo=timezone.utc),
+        )
+
+        early_bird_result = self.early_bird.evaluate(early_bird_session)
+        night_owl_result = self.night_owl.evaluate(night_owl_session)
+
+        self.assertFalse(early_bird_result.applicable)
+        self.assertFalse(night_owl_result.applicable)
+        self.assertEqual(early_bird_result.details["reason"], "stay_longer_than_24_hours")
+        self.assertEqual(night_owl_result.details["reason"], "stay_longer_than_24_hours")
+
+    def test_special_policies_apply_loyalty_discounts_for_each_tier(self) -> None:
+        cases = [
+            (LoyaltyTier.NONE, Decimal("15.00"), Decimal("8.00")),
+            (LoyaltyTier.SILVER, Decimal("13.50"), Decimal("7.20")),
+            (LoyaltyTier.GOLD, Decimal("12.00"), Decimal("6.40")),
+            (LoyaltyTier.PLATINUM, Decimal("10.50"), Decimal("5.60")),
+        ]
+
+        for loyalty_tier, early_bird_amount, night_owl_amount in cases:
+            with self.subTest(loyalty_tier=loyalty_tier):
+                early_bird_session = self.create_session(
+                    datetime(2026, 9, 28, 8, 0, tzinfo=timezone.utc),
+                    datetime(2026, 9, 28, 16, 0, tzinfo=timezone.utc),
+                    loyalty_tier=loyalty_tier,
+                )
+                night_owl_session = self.create_session(
+                    datetime(2026, 9, 28, 18, 0, tzinfo=timezone.utc),
+                    datetime(2026, 9, 29, 8, 0, tzinfo=timezone.utc),
+                    loyalty_tier=loyalty_tier,
+                )
+
+                early_bird_result = self.early_bird.evaluate(early_bird_session)
+                night_owl_result = self.night_owl.evaluate(night_owl_session)
+
+                self.assertEqual(early_bird_result.amount, early_bird_amount)
+                self.assertEqual(night_owl_result.amount, night_owl_amount)
+                self.assertEqual(
+                    early_bird_result.details["loyalty_discount"],
+                    str(LOYALTY_DISCOUNTS[loyalty_tier]),
+                )
+                self.assertEqual(
+                    night_owl_result.details["loyalty_discount"],
+                    str(LOYALTY_DISCOUNTS[loyalty_tier]),
+                )
+
+    def test_special_policies_apply_vehicle_multipliers_after_discounts(self) -> None:
+        motorcycle_session = self.create_session(
+            datetime(2026, 9, 28, 8, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 16, 0, tzinfo=timezone.utc),
+            loyalty_tier=LoyaltyTier.SILVER,
+            vehicle_type=VehicleType.MOTORCYCLE,
+        )
+        bus_session = self.create_session(
+            datetime(2026, 9, 28, 18, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 29, 8, 0, tzinfo=timezone.utc),
+            loyalty_tier=LoyaltyTier.GOLD,
+            vehicle_type=VehicleType.BUS,
+        )
+
+        motorcycle_result = self.early_bird.evaluate(motorcycle_session)
+        bus_result = self.night_owl.evaluate(bus_session)
+
+        self.assertEqual(motorcycle_result.amount, Decimal("10.80"))
+        self.assertEqual(motorcycle_result.details["vehicle_multiplier"], "0.8")
+        self.assertEqual(bus_result.amount, Decimal("12.80"))
+        self.assertEqual(bus_result.details["vehicle_multiplier"], "2.0")
+
+    def test_special_policies_reject_missing_and_invalid_timestamps(self) -> None:
+        for policy in (self.early_bird, self.night_owl):
+            with self.subTest(policy=policy.policy):
+                missing_entry = self.create_session(
+                    datetime(2026, 9, 28, 8, 0, tzinfo=timezone.utc),
+                    datetime(2026, 9, 28, 16, 0, tzinfo=timezone.utc),
+                )
+                missing_entry.entered_at = None
+                missing_exit = self.create_session(
+                    datetime(2026, 9, 28, 8, 0, tzinfo=timezone.utc),
+                    None,
+                )
+                invalid_exit = self.create_session(
+                    datetime(2026, 9, 28, 8, 0, tzinfo=timezone.utc),
+                    datetime(2026, 9, 28, 8, 0, tzinfo=timezone.utc),
+                )
+
+                self.assertEqual(
+                    policy.evaluate(missing_entry).details["reason"],
+                    "missing_entered_at",
+                )
+                self.assertEqual(
+                    policy.evaluate(missing_exit).details["reason"],
+                    "missing_exited_at",
+                )
+                self.assertEqual(
+                    policy.evaluate(invalid_exit).details["reason"],
+                    "exited_at_must_be_after_entered_at",
+                )
+
+    def test_special_policies_reject_unsupported_pricing_inputs(self) -> None:
+        invalid_vehicle_session = self.create_session(
+            datetime(2026, 9, 28, 8, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 16, 0, tzinfo=timezone.utc),
+            vehicle_type="truck",
+        )
+        invalid_loyalty_session = self.create_session(
+            datetime(2026, 9, 28, 18, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 29, 8, 0, tzinfo=timezone.utc),
+            loyalty_tier="diamond",
+        )
+
+        self.assertEqual(
+            self.early_bird.evaluate(invalid_vehicle_session).details["reason"],
+            "unsupported_vehicle_type",
+        )
+        self.assertEqual(
+            self.night_owl.evaluate(invalid_loyalty_session).details["reason"],
+            "unsupported_loyalty_tier_snapshot",
+        )
+
+    def test_special_policy_audit_details_are_json_friendly(self) -> None:
+        applicable_session = self.create_session(
+            datetime(2026, 9, 28, 8, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 16, 0, tzinfo=timezone.utc),
+            loyalty_tier=LoyaltyTier.GOLD,
+        )
+        inapplicable_session = self.create_session(
+            datetime(2026, 9, 28, 18, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 29, 10, 0, tzinfo=timezone.utc),
+            loyalty_tier=LoyaltyTier.PLATINUM,
+        )
+
+        applicable_result = self.early_bird.evaluate(applicable_session)
+        inapplicable_result = self.night_owl.evaluate(inapplicable_session)
+
+        required_keys = {
+            "base_amount",
+            "loyalty_tier",
+            "loyalty_discount",
+            "vehicle_type",
+            "vehicle_multiplier",
+            "applicability_reason",
+            "reason",
+            "final_amount",
+            "entered_at",
+            "exited_at",
+        }
+        self.assertGreaterEqual(set(applicable_result.details), required_keys)
+        self.assertGreaterEqual(set(inapplicable_result.details), required_keys)
+        self.assertEqual(applicable_result.details["base_amount"], "15.00")
+        self.assertEqual(applicable_result.details["loyalty_tier"], LoyaltyTier.GOLD)
+        self.assertEqual(applicable_result.details["loyalty_discount"], "0.20")
+        self.assertEqual(applicable_result.details["vehicle_type"], VehicleType.CAR)
+        self.assertEqual(applicable_result.details["vehicle_multiplier"], "1.0")
+        self.assertEqual(applicable_result.details["applicability_reason"], "applicable")
+        self.assertEqual(applicable_result.details["final_amount"], "12.00")
+        self.assertEqual(inapplicable_result.details["base_amount"], "8.00")
+        self.assertEqual(
+            inapplicable_result.details["applicability_reason"],
+            "exit_time_outside_window",
+        )
+        self.assertIsNone(inapplicable_result.details["final_amount"])
 
 
 class ParkingAdminConfigurationTests(SimpleTestCase):

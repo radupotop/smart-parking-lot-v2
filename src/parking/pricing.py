@@ -226,3 +226,154 @@ class StandardHourlyPolicy:
             current_date += timedelta(days=1)
 
         return False
+
+
+class _SpecialFlatRatePolicy:
+    """Shared calculation flow for flat-rate special policies."""
+
+    policy: str
+    base_amount: Decimal
+
+    def evaluate(self, session) -> PolicyResult:
+        details = self._base_details(session)
+        validation_reason = self._populate_pricing_inputs(session, details)
+
+        if validation_reason is not None:
+            return self._not_applicable(details, validation_reason)
+
+        entered_at = getattr(session, "entered_at")
+        exited_at = getattr(session, "exited_at")
+        window_reason = self._window_reason(entered_at, exited_at)
+
+        if window_reason != "applicable":
+            return self._not_applicable(details, window_reason)
+
+        discounted_amount = self.base_amount * (Decimal("1") - details["_loyalty_discount"])
+        final_amount = quantize_currency(discounted_amount * details["_vehicle_multiplier"])
+        self._drop_internal_details(details)
+        details.update(
+            {
+                "applicability_reason": "applicable",
+                "reason": "applicable",
+                "final_amount": str(final_amount),
+            },
+        )
+        return PolicyResult(
+            policy=self.policy,
+            applicable=True,
+            amount=final_amount,
+            details=details,
+        )
+
+    def _base_details(self, session) -> dict:
+        entered_at = getattr(session, "entered_at", None)
+        exited_at = getattr(session, "exited_at", None)
+        vehicle = getattr(session, "vehicle", None)
+        vehicle_type = getattr(vehicle, "vehicle_type", None)
+        loyalty_tier = getattr(session, "loyalty_tier_snapshot", None)
+
+        return {
+            "base_amount": str(quantize_currency(self.base_amount)),
+            "loyalty_tier": loyalty_tier,
+            "loyalty_discount": None,
+            "vehicle_type": vehicle_type,
+            "vehicle_multiplier": None,
+            "entered_at": self._serialize_datetime(entered_at),
+            "exited_at": self._serialize_datetime(exited_at),
+            "applicability_reason": None,
+            "reason": None,
+            "final_amount": None,
+        }
+
+    def _populate_pricing_inputs(self, session, details: dict) -> str | None:
+        entered_at = getattr(session, "entered_at", None)
+        exited_at = getattr(session, "exited_at", None)
+
+        if entered_at is None:
+            return "missing_entered_at"
+        if exited_at is None:
+            return "missing_exited_at"
+        if exited_at <= entered_at:
+            return "exited_at_must_be_after_entered_at"
+        if exited_at - entered_at > timedelta(hours=24):
+            return "stay_longer_than_24_hours"
+
+        try:
+            vehicle_type = VehicleType(session.vehicle.vehicle_type)
+        except (AttributeError, ValueError):
+            return "unsupported_vehicle_type"
+
+        details["vehicle_type"] = vehicle_type.value
+        details["_vehicle_multiplier"] = VEHICLE_MULTIPLIERS[vehicle_type]
+        details["vehicle_multiplier"] = str(details["_vehicle_multiplier"])
+
+        loyalty_tier_snapshot = getattr(session, "loyalty_tier_snapshot", None)
+        if loyalty_tier_snapshot is None:
+            return "missing_loyalty_tier_snapshot"
+
+        try:
+            loyalty_tier = LoyaltyTier(loyalty_tier_snapshot)
+        except ValueError:
+            return "unsupported_loyalty_tier_snapshot"
+
+        details["loyalty_tier"] = loyalty_tier.value
+        details["_loyalty_discount"] = LOYALTY_DISCOUNTS[loyalty_tier]
+        details["loyalty_discount"] = str(details["_loyalty_discount"])
+
+        return None
+
+    def _not_applicable(self, details: dict, reason: str) -> PolicyResult:
+        self._drop_internal_details(details)
+        details["applicability_reason"] = reason
+        details["reason"] = reason
+        details["final_amount"] = None
+        return PolicyResult(
+            policy=self.policy,
+            applicable=False,
+            amount=None,
+            details=details,
+        )
+
+    def _drop_internal_details(self, details: dict) -> None:
+        details.pop("_vehicle_multiplier", None)
+        details.pop("_loyalty_discount", None)
+
+    def _serialize_datetime(self, value) -> str | None:
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return None
+
+    def _window_reason(self, entered_at: datetime, exited_at: datetime) -> str:
+        raise NotImplementedError
+
+
+class EarlyBirdPolicy(_SpecialFlatRatePolicy):
+    """Calculate the Early Bird flat-rate special without persisting results."""
+
+    policy = RatePolicy.EARLY_BIRD
+    base_amount = EARLY_BIRD_RATE
+
+    def _window_reason(self, entered_at: datetime, exited_at: datetime) -> str:
+        if entered_at.date() != exited_at.date():
+            return "not_same_calendar_day"
+        if not contains_time(entered_at.time(), EARLY_BIRD_ENTRY_WINDOW):
+            return "entry_time_outside_window"
+        if not contains_time(exited_at.time(), EARLY_BIRD_EXIT_WINDOW):
+            return "exit_time_outside_window"
+        return "applicable"
+
+
+class NightOwlPolicy(_SpecialFlatRatePolicy):
+    """Calculate the Night Owl flat-rate special without persisting results."""
+
+    policy = RatePolicy.NIGHT_OWL
+    base_amount = NIGHT_OWL_RATE
+
+    def _window_reason(self, entered_at: datetime, exited_at: datetime) -> str:
+        if exited_at.date() != entered_at.date() + timedelta(days=1):
+            return "not_next_consecutive_calendar_day"
+        if not contains_time(entered_at.time(), NIGHT_OWL_ENTRY_WINDOW):
+            return "entry_time_outside_window"
+        if not contains_time(exited_at.time(), NIGHT_OWL_EXIT_WINDOW):
+            return "exit_time_outside_window"
+        return "applicable"

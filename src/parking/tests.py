@@ -33,8 +33,11 @@ from parking.pricing import (
     NIGHT_OWL_EXIT_WINDOW,
     NIGHT_OWL_RATE,
     NightOwlPolicy,
+    NoApplicableRatePolicyError,
     PEAK_MULTIPLIER,
     PEAK_WINDOWS,
+    ParkingRateCalculator,
+    PolicyResult,
     STANDARD_FIRST_HOUR_RATE,
     STANDARD_HOURLY_BASE_RATES,
     STANDARD_SECOND_HOUR_RATE,
@@ -880,6 +883,186 @@ class SpecialFlatRatePolicyTests(TestCase):
             "exit_time_outside_window",
         )
         self.assertIsNone(inapplicable_result.details["final_amount"])
+
+
+class ParkingRateCalculatorTests(TestCase):
+    def setUp(self) -> None:
+        self.spot = ParkingSpot.objects.create(
+            level=1,
+            number="CALC-01",
+            spot_type=SpotType.COMPACT,
+        )
+        self.registration_counter = 0
+
+    def create_session(
+        self,
+        entered_at: datetime,
+        exited_at: datetime,
+        loyalty_tier: str = LoyaltyTier.NONE,
+        vehicle_type: str = VehicleType.CAR,
+    ) -> ParkingSession:
+        self.registration_counter += 1
+        vehicle = Vehicle.objects.create(
+            registration=f"CALC-{self.registration_counter:03d}",
+            vehicle_type=vehicle_type,
+        )
+        return ParkingSession.objects.create(
+            vehicle=vehicle,
+            spot=self.spot,
+            entered_at=entered_at,
+            exited_at=exited_at,
+            status=SessionStatus.CLOSED,
+            loyalty_tier_snapshot=loyalty_tier,
+        )
+
+    def test_default_calculator_persists_all_policies_and_selects_best_value(self) -> None:
+        session = self.create_session(
+            datetime(2026, 9, 28, 6, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 16, 0, tzinfo=timezone.utc),
+        )
+
+        selected = ParkingRateCalculator().calculate(session)
+
+        session.refresh_from_db()
+        evaluations = {
+            evaluation.policy: evaluation
+            for evaluation in RateEvaluation.objects.filter(session=session)
+        }
+        self.assertEqual(
+            set(evaluations),
+            {RatePolicy.STANDARD, RatePolicy.EARLY_BIRD, RatePolicy.NIGHT_OWL},
+        )
+        self.assertEqual(selected.policy, RatePolicy.EARLY_BIRD)
+        self.assertEqual(selected.amount, Decimal("15.00"))
+        self.assertEqual(session.selected_evaluation, selected)
+        self.assertEqual(session.charged_amount, Decimal("15.00"))
+        self.assertGreater(evaluations[RatePolicy.STANDARD].amount, selected.amount)
+        self.assertFalse(evaluations[RatePolicy.NIGHT_OWL].applicable)
+        self.assertIsNone(evaluations[RatePolicy.NIGHT_OWL].amount)
+        self.assertIn("reason", evaluations[RatePolicy.NIGHT_OWL].details)
+
+    def test_calculator_runs_every_configured_policy_before_selecting(self) -> None:
+        calls = []
+        session = self.create_session(
+            datetime(2026, 10, 3, 11, 0, tzinfo=timezone.utc),
+            datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc),
+        )
+        policies = [
+            self.FixedPolicy(RatePolicy.STANDARD, True, Decimal("9.00"), calls),
+            self.FixedPolicy(RatePolicy.EARLY_BIRD, True, Decimal("4.00"), calls),
+            self.FixedPolicy(
+                RatePolicy.NIGHT_OWL,
+                False,
+                None,
+                calls,
+                reason="outside_window",
+            ),
+        ]
+
+        selected = ParkingRateCalculator(policies=policies).calculate(session)
+
+        self.assertEqual(
+            calls,
+            [RatePolicy.STANDARD, RatePolicy.EARLY_BIRD, RatePolicy.NIGHT_OWL],
+        )
+        self.assertEqual(selected.policy, RatePolicy.EARLY_BIRD)
+        self.assertEqual(selected.amount, Decimal("4.00"))
+        self.assertEqual(RateEvaluation.objects.filter(session=session).count(), 3)
+
+    def test_rerun_refreshes_evaluations_without_leaving_stale_rows(self) -> None:
+        session = self.create_session(
+            datetime(2026, 9, 28, 6, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 16, 0, tzinfo=timezone.utc),
+            loyalty_tier=LoyaltyTier.NONE,
+        )
+        calculator = ParkingRateCalculator()
+        calculator.calculate(session)
+        first_evaluation_ids = set(
+            RateEvaluation.objects.filter(session=session).values_list("id", flat=True),
+        )
+
+        session.loyalty_tier_snapshot = LoyaltyTier.PLATINUM
+        session.save(update_fields=["loyalty_tier_snapshot"])
+        selected = calculator.calculate(session)
+
+        session.refresh_from_db()
+        refreshed_evaluation_ids = set(
+            RateEvaluation.objects.filter(session=session).values_list("id", flat=True),
+        )
+        self.assertEqual(RateEvaluation.objects.filter(session=session).count(), 3)
+        self.assertFalse(first_evaluation_ids & refreshed_evaluation_ids)
+        self.assertEqual(selected.policy, RatePolicy.EARLY_BIRD)
+        self.assertEqual(selected.amount, Decimal("10.50"))
+        self.assertEqual(session.charged_amount, Decimal("10.50"))
+
+    def test_no_applicable_policy_persists_rejections_and_raises_domain_error(self) -> None:
+        calls = []
+        session = self.create_session(
+            datetime(2026, 10, 3, 11, 0, tzinfo=timezone.utc),
+            datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc),
+        )
+        calculator = ParkingRateCalculator(
+            policies=[
+                self.FixedPolicy(
+                    RatePolicy.STANDARD,
+                    False,
+                    None,
+                    calls,
+                    reason="standard_disabled",
+                ),
+                self.FixedPolicy(
+                    RatePolicy.EARLY_BIRD,
+                    False,
+                    None,
+                    calls,
+                    reason="outside_window",
+                ),
+            ],
+        )
+
+        with self.assertRaisesRegex(NoApplicableRatePolicyError, "No applicable"):
+            calculator.calculate(session)
+
+        session.refresh_from_db()
+        evaluations = list(RateEvaluation.objects.filter(session=session).order_by("policy"))
+        self.assertEqual(calls, [RatePolicy.STANDARD, RatePolicy.EARLY_BIRD])
+        self.assertEqual(len(evaluations), 2)
+        self.assertTrue(all(not evaluation.applicable for evaluation in evaluations))
+        self.assertTrue(all(evaluation.amount is None for evaluation in evaluations))
+        self.assertEqual(
+            {evaluation.details["reason"] for evaluation in evaluations},
+            {"standard_disabled", "outside_window"},
+        )
+        self.assertIsNone(session.selected_evaluation)
+        self.assertIsNone(session.charged_amount)
+
+    class FixedPolicy:
+        def __init__(
+            self,
+            policy: str,
+            applicable: bool,
+            amount: Decimal | None,
+            calls: list,
+            reason: str = "applicable",
+        ) -> None:
+            self.policy = policy
+            self.applicable = applicable
+            self.amount = amount
+            self.calls = calls
+            self.reason = reason
+
+        def evaluate(self, session) -> PolicyResult:
+            self.calls.append(self.policy)
+            return PolicyResult(
+                policy=self.policy,
+                applicable=self.applicable,
+                amount=self.amount,
+                details={
+                    "reason": self.reason,
+                    "session_id": session.pk,
+                    "quoted_amount": self.amount,
+                },
+            )
 
 
 class ParkingAdminConfigurationTests(SimpleTestCase):

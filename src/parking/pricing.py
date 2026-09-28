@@ -3,8 +3,18 @@
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal, ROUND_HALF_UP
+from typing import Any
 
-from parking.models import LoyaltyTier, PublicHoliday, RatePolicy, VehicleType
+from django.db import transaction
+
+from parking.models import (
+    LoyaltyTier,
+    ParkingSession,
+    PublicHoliday,
+    RateEvaluation,
+    RatePolicy,
+    VehicleType,
+)
 
 CURRENCY_QUANTUM = Decimal("0.01")
 
@@ -53,6 +63,10 @@ class PolicyResult:
     applicable: bool
     amount: Decimal | None
     details: dict
+
+
+class NoApplicableRatePolicyError(Exception):
+    """Raised when every configured pricing policy rejects a session."""
 
 
 PEAK_WINDOWS = (
@@ -377,3 +391,109 @@ class NightOwlPolicy(_SpecialFlatRatePolicy):
         if not contains_time(exited_at.time(), NIGHT_OWL_EXIT_WINDOW):
             return "exit_time_outside_window"
         return "applicable"
+
+
+class ParkingRateCalculator:
+    """Run configured policies and persist the selected best-value charge."""
+
+    default_policy_classes = (
+        StandardHourlyPolicy,
+        EarlyBirdPolicy,
+        NightOwlPolicy,
+    )
+
+    def __init__(self, policies=None) -> None:
+        self.policies = list(policies) if policies is not None else [
+            policy_class() for policy_class in self.default_policy_classes
+        ]
+
+    def calculate(self, session: ParkingSession) -> RateEvaluation:
+        """Evaluate every configured policy and persist the cheapest applicable result."""
+
+        results = [policy.evaluate(session) for policy in self.policies]
+        selected_evaluation = None
+
+        with transaction.atomic():
+            locked_session = ParkingSession.objects.select_for_update().get(pk=session.pk)
+            locked_session.selected_evaluation = None
+            locked_session.charged_amount = None
+            locked_session.save(update_fields=["selected_evaluation", "charged_amount"])
+            RateEvaluation.objects.filter(session=locked_session).delete()
+
+            evaluations = [
+                self._create_evaluation(locked_session, result)
+                for result in results
+            ]
+            applicable_evaluations = [
+                evaluation
+                for evaluation in evaluations
+                if evaluation.applicable and evaluation.amount is not None
+            ]
+
+            if applicable_evaluations:
+                selected_evaluation = min(
+                    applicable_evaluations,
+                    key=lambda evaluation: (
+                        evaluation.amount,
+                        self._policy_order(evaluation.policy),
+                        evaluation.pk or 0,
+                    ),
+                )
+                locked_session.selected_evaluation = selected_evaluation
+                locked_session.charged_amount = selected_evaluation.amount
+                locked_session.save(
+                    update_fields=["selected_evaluation", "charged_amount"],
+                )
+
+        session.refresh_from_db()
+
+        if selected_evaluation is None:
+            policy_names = ", ".join(str(result.policy) for result in results) or "none"
+            raise NoApplicableRatePolicyError(
+                f"No applicable rate policy for session {session.pk}; "
+                f"considered policies: {policy_names}",
+            )
+
+        return selected_evaluation
+
+    def _create_evaluation(
+        self,
+        session: ParkingSession,
+        result: PolicyResult,
+    ) -> RateEvaluation:
+        return RateEvaluation.objects.create(
+            session=session,
+            policy=result.policy,
+            applicable=result.applicable,
+            amount=result.amount if result.applicable else None,
+            details=self._evaluation_details(result),
+        )
+
+    def _evaluation_details(self, result: PolicyResult) -> dict:
+        details = self._json_compatible(result.details or {})
+
+        if not result.applicable:
+            details.setdefault("reason", "not_applicable")
+            details.setdefault("applicability_reason", details["reason"])
+
+        return details
+
+    def _policy_order(self, policy: str) -> int:
+        for index, configured_policy in enumerate(self.policies):
+            if getattr(configured_policy, "policy", None) == policy:
+                return index
+        return len(self.policies)
+
+    def _json_compatible(self, value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                str(key): self._json_compatible(child_value)
+                for key, child_value in value.items()
+            }
+        if isinstance(value, (list, tuple)):
+            return [self._json_compatible(child_value) for child_value in value]
+        if isinstance(value, Decimal):
+            return str(value)
+        if isinstance(value, (date, datetime, time)):
+            return value.isoformat()
+        return value

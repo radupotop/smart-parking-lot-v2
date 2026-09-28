@@ -3,10 +3,12 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
+from django.contrib import admin as django_admin
 from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
+from parking.admin import RateEvaluationInline
 from parking.models import (
     Customer,
     LoyaltyTier,
@@ -267,3 +269,69 @@ class ParkingSessionAuditModelTests(TestCase):
             str(evaluation),
             f"Standard evaluation for session {session.pk}",
         )
+
+
+class ParkingAdminConfigurationTests(SimpleTestCase):
+    def test_all_parking_models_are_registered_in_admin(self) -> None:
+        registered_models = set(django_admin.site._registry)
+
+        self.assertGreaterEqual(
+            registered_models,
+            {
+                Customer,
+                Vehicle,
+                ParkingSpot,
+                SpotTypeVehicleCompatibility,
+                ParkingSession,
+                RateEvaluation,
+                PublicHoliday,
+            },
+        )
+
+    def test_admin_list_displays_identify_records_without_opening_rows(self) -> None:
+        customer_admin = django_admin.site._registry[Customer]
+        vehicle_admin = django_admin.site._registry[Vehicle]
+        spot_admin = django_admin.site._registry[ParkingSpot]
+        compatibility_admin = django_admin.site._registry[SpotTypeVehicleCompatibility]
+        session_admin = django_admin.site._registry[ParkingSession]
+        evaluation_admin = django_admin.site._registry[RateEvaluation]
+        holiday_admin = django_admin.site._registry[PublicHoliday]
+
+        self.assertIn("loyalty_tier", customer_admin.list_display)
+        self.assertIn("registration", vehicle_admin.list_display)
+        self.assertIn("number", spot_admin.list_display)
+        self.assertIn("spot_type", compatibility_admin.list_display)
+        self.assertIn("vehicle_registration", session_admin.list_display)
+        self.assertIn("selected_evaluation", session_admin.list_display)
+        self.assertIn("policy", evaluation_admin.list_display)
+        self.assertIn("date", holiday_admin.list_display)
+
+    def test_admin_filters_and_search_fields_support_common_lookups(self) -> None:
+        customer_admin = django_admin.site._registry[Customer]
+        vehicle_admin = django_admin.site._registry[Vehicle]
+        session_admin = django_admin.site._registry[ParkingSession]
+        evaluation_admin = django_admin.site._registry[RateEvaluation]
+        holiday_admin = django_admin.site._registry[PublicHoliday]
+
+        self.assertIn("registration", vehicle_admin.search_fields)
+        self.assertIn("vehicle__registration", session_admin.search_fields)
+        self.assertIn("session__vehicle__registration", evaluation_admin.search_fields)
+        self.assertIn("status", session_admin.list_filter)
+        self.assertIn("policy", evaluation_admin.list_filter)
+        self.assertIn("date", holiday_admin.list_filter)
+        self.assertIn("loyalty_tier", customer_admin.list_filter)
+        self.assertIn("customer__loyalty_tier", vehicle_admin.list_filter)
+        self.assertIn("loyalty_tier_snapshot", session_admin.list_filter)
+
+    def test_session_admin_exposes_selected_and_related_evaluations(self) -> None:
+        session_admin = django_admin.site._registry[ParkingSession]
+
+        self.assertIn("selected_evaluation", session_admin.list_display)
+        self.assertIn("selected_evaluation", session_admin.readonly_fields)
+        self.assertIn(RateEvaluationInline, session_admin.inlines)
+        self.assertEqual(
+            RateEvaluationInline.readonly_fields,
+            ("policy", "applicable", "amount", "details", "created_at"),
+        )
+        self.assertTrue(RateEvaluationInline.show_change_link)
+        self.assertFalse(RateEvaluationInline.can_delete)

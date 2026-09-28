@@ -30,3 +30,7 @@ Mon, 28 Sep 2026 17:01:50 +0100
 Mon, 28 Sep 2026 17:13:23 +0100
 > Add a task-0 for bootstrapping a venv using uv; use `uv venv --seed --clear --no-managed-python`; this should be inside the `src/` dir; and it should also include a `pyproject.toml` file
 ----
+
+Mon, 28 Sep 2026 19:42:50 +0100
+> Start with Task-0 the bootstrap environment; do it in a subagent
+----

@@ -1,0 +1,12 @@
+services:
+  app:
+    image: smart-parking-lot
+    build:
+      context: .
+      dockerfile: Containerfile
+    environment:
+      DJANGO_SQLITE_PATH: /app/data/db.sqlite3
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data:Z

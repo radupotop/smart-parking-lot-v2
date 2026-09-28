@@ -24,6 +24,40 @@ uv run python manage.py test
 
 ## Podman runtime
 
+### Compose workflow
+
+From the repository root, build and start the Django development server with
+Podman Compose:
+
+```bash
+podman compose up --build
+```
+
+The compose service builds from the root `Containerfile`, publishes the Django
+development server on <http://localhost:8000>, sets
+`DJANGO_SQLITE_PATH=/app/data/db.sqlite3`, and mounts root `data/` to
+`/app/data` so SQLite data persists outside the container.
+
+Run migrations against the mounted database:
+
+```bash
+podman compose run --rm app uv run python manage.py migrate
+```
+
+Run tests through the compose service:
+
+```bash
+podman compose run --rm app uv run python manage.py test
+```
+
+Stop the development server with `Ctrl+C`, or from another shell:
+
+```bash
+podman compose down
+```
+
+### Single-container commands
+
 Build the development image from the repository root:
 
 ```bash

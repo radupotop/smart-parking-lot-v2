@@ -46,3 +46,7 @@ Mon, 28 Sep 2026 20:07:44 +0100
 Mon, 28 Sep 2026 20:48:15 +0100
 > add Task-1.5 for updating python to 3.14-slim and django to 6.1
 ----
+
+Mon, 28 Sep 2026 20:51:06 +0100
+> OK let's carry on with the remaining sub-tasks of Task-1. Each sub-task should run in a sub-agent, with a commit after each; they should run sequentially - not in parallel;
+----

@@ -37,6 +37,7 @@ from parking.pricing import (
     STANDARD_HOURLY_BASE_RATES,
     STANDARD_SECOND_HOUR_RATE,
     STANDARD_SUBSEQUENT_HOUR_RATE,
+    StandardHourlyPolicy,
     TimeWindow,
     VEHICLE_MULTIPLIERS,
     contains_time,
@@ -412,6 +413,187 @@ class PricingConstantsAndHelpersTests(TestCase):
         self.assertEqual(quantize_currency(Decimal("12.345")), Decimal("12.35"))
         self.assertEqual(quantize_currency(Decimal("12.344")), Decimal("12.34"))
         self.assertEqual(quantize_currency(Decimal("12.345")).as_tuple().exponent, -2)
+
+
+class StandardHourlyPolicyTests(TestCase):
+    def setUp(self) -> None:
+        self.policy = StandardHourlyPolicy()
+        self.spot = ParkingSpot.objects.create(
+            level=1,
+            number="STD-01",
+            spot_type=SpotType.COMPACT,
+        )
+        self.registration_counter = 0
+
+    def create_session(
+        self,
+        entered_at: datetime,
+        exited_at: datetime | None,
+        vehicle_type: str = VehicleType.CAR,
+    ) -> ParkingSession:
+        self.registration_counter += 1
+        vehicle = Vehicle.objects.create(
+            registration=f"STD-{self.registration_counter:03d}",
+            vehicle_type=vehicle_type,
+        )
+        return ParkingSession.objects.create(
+            vehicle=vehicle,
+            spot=self.spot,
+            entered_at=entered_at,
+            exited_at=exited_at,
+            status=SessionStatus.CLOSED if exited_at else SessionStatus.OPEN,
+        )
+
+    def test_policy_applies_to_sessions_with_valid_entry_and_exit(self) -> None:
+        session = self.create_session(
+            datetime(2026, 10, 3, 11, 0, tzinfo=timezone.utc),
+            datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc),
+        )
+
+        result = self.policy.evaluate(session)
+
+        self.assertEqual(result.policy, RatePolicy.STANDARD)
+        self.assertTrue(result.applicable)
+        self.assertEqual(result.amount, Decimal("5.00"))
+        self.assertEqual(result.details["rounded_hours"], 1)
+
+    def test_policy_rejects_open_missing_and_invalid_exit_sessions(self) -> None:
+        open_session = self.create_session(
+            datetime(2026, 10, 3, 11, 0, tzinfo=timezone.utc),
+            None,
+        )
+        invalid_session = self.create_session(
+            datetime(2026, 10, 3, 11, 0, tzinfo=timezone.utc),
+            datetime(2026, 10, 3, 11, 0, tzinfo=timezone.utc),
+        )
+
+        open_result = self.policy.evaluate(open_session)
+        invalid_result = self.policy.evaluate(invalid_session)
+
+        self.assertFalse(open_result.applicable)
+        self.assertIsNone(open_result.amount)
+        self.assertEqual(open_result.details["reason"], "missing_exited_at")
+        self.assertEqual(open_result.details["hours"], [])
+        self.assertFalse(invalid_result.applicable)
+        self.assertIsNone(invalid_result.amount)
+        self.assertEqual(
+            invalid_result.details["reason"],
+            "exited_at_must_be_after_entered_at",
+        )
+
+    def test_partial_duration_rounds_up_and_final_block_extends_from_entry(self) -> None:
+        session = self.create_session(
+            datetime(2026, 10, 3, 11, 15, tzinfo=timezone.utc),
+            datetime(2026, 10, 3, 12, 16, tzinfo=timezone.utc),
+        )
+
+        result = self.policy.evaluate(session)
+
+        self.assertEqual(result.amount, Decimal("8.00"))
+        self.assertEqual(result.details["rounded_hours"], 2)
+        self.assertEqual(len(result.details["hours"]), 2)
+        self.assertEqual(result.details["hours"][0]["start"], "2026-10-03T11:15:00+00:00")
+        self.assertEqual(result.details["hours"][1]["start"], "2026-10-03T12:15:00+00:00")
+        self.assertEqual(result.details["hours"][1]["end"], "2026-10-03T13:15:00+00:00")
+
+    def test_floating_weekday_peak_example_matches_prd_total(self) -> None:
+        session = self.create_session(
+            datetime(2026, 9, 28, 6, 30, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 8, 30, tzinfo=timezone.utc),
+        )
+
+        result = self.policy.evaluate(session)
+
+        self.assertEqual(result.amount, Decimal("12.00"))
+        self.assertEqual(
+            [hour["start"] for hour in result.details["hours"]],
+            ["2026-09-28T06:30:00+00:00", "2026-09-28T07:30:00+00:00"],
+        )
+        self.assertEqual(
+            [hour["amount"] for hour in result.details["hours"]],
+            ["7.50", "4.50"],
+        )
+        self.assertTrue(all(hour["peak"] for hour in result.details["hours"]))
+
+    def test_base_rate_progression_uses_first_second_and_subsequent_rates(self) -> None:
+        session = self.create_session(
+            datetime(2026, 10, 3, 11, 0, tzinfo=timezone.utc),
+            datetime(2026, 10, 3, 15, 0, tzinfo=timezone.utc),
+        )
+
+        result = self.policy.evaluate(session)
+
+        self.assertEqual(result.amount, Decimal("12.00"))
+        self.assertEqual(
+            [hour["base_rate"] for hour in result.details["hours"]],
+            ["5.00", "3.00", "2.00", "2.00"],
+        )
+        self.assertEqual(
+            [hour["amount"] for hour in result.details["hours"]],
+            ["5.00", "3.00", "2.00", "2.00"],
+        )
+
+    def test_any_partial_overlap_makes_the_whole_block_peak(self) -> None:
+        session = self.create_session(
+            datetime(2026, 9, 28, 6, 30, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 7, 1, tzinfo=timezone.utc),
+        )
+
+        result = self.policy.evaluate(session)
+
+        self.assertEqual(result.amount, Decimal("7.50"))
+        self.assertTrue(result.details["hours"][0]["peak"])
+        self.assertEqual(result.details["hours"][0]["multiplier"], "1.50")
+
+    def test_peak_windows_use_inclusive_starts_and_exclusive_ends(self) -> None:
+        starts_at_peak = self.create_session(
+            datetime(2026, 9, 28, 7, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 8, 0, tzinfo=timezone.utc),
+        )
+        starts_at_peak_end = self.create_session(
+            datetime(2026, 9, 28, 10, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 11, 0, tzinfo=timezone.utc),
+        )
+
+        peak_result = self.policy.evaluate(starts_at_peak)
+        non_peak_result = self.policy.evaluate(starts_at_peak_end)
+
+        self.assertTrue(peak_result.details["hours"][0]["peak"])
+        self.assertEqual(peak_result.amount, Decimal("7.50"))
+        self.assertFalse(non_peak_result.details["hours"][0]["peak"])
+        self.assertEqual(non_peak_result.amount, Decimal("5.00"))
+
+    def test_public_holiday_excludes_weekday_peak_surcharge(self) -> None:
+        PublicHoliday.objects.create(date=date(2026, 9, 28), name="Observed Holiday")
+        session = self.create_session(
+            datetime(2026, 9, 28, 7, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 28, 8, 0, tzinfo=timezone.utc),
+        )
+
+        result = self.policy.evaluate(session)
+
+        self.assertFalse(result.details["hours"][0]["peak"])
+        self.assertEqual(result.amount, Decimal("5.00"))
+
+    def test_vehicle_multiplier_is_applied_to_each_hourly_block(self) -> None:
+        motorcycle_session = self.create_session(
+            datetime(2026, 10, 3, 11, 0, tzinfo=timezone.utc),
+            datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc),
+            vehicle_type=VehicleType.MOTORCYCLE,
+        )
+        bus_session = self.create_session(
+            datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc),
+            datetime(2026, 10, 3, 13, 0, tzinfo=timezone.utc),
+            vehicle_type=VehicleType.BUS,
+        )
+
+        motorcycle_result = self.policy.evaluate(motorcycle_session)
+        bus_result = self.policy.evaluate(bus_session)
+
+        self.assertEqual(motorcycle_result.amount, Decimal("4.00"))
+        self.assertEqual(motorcycle_result.details["hours"][0]["multiplier"], "0.80")
+        self.assertEqual(bus_result.amount, Decimal("10.00"))
+        self.assertEqual(bus_result.details["hours"][0]["multiplier"], "2.00")
 
 
 class ParkingAdminConfigurationTests(SimpleTestCase):

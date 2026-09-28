@@ -38,3 +38,7 @@ Mon, 28 Sep 2026 19:42:50 +0100
 Mon, 28 Sep 2026 19:49:53 +0100
 > OK let's carry on with Task-1, each of the sub-task should run in a sub-agent, with a commit after each; they should run sequentially - not in parallel;
 ----
+
+Mon, 28 Sep 2026 20:07:44 +0100
+> Add Task-1.4: add a compose yaml file which encapsulates the current container infra
+----

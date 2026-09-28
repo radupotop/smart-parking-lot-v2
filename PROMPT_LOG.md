@@ -54,3 +54,7 @@ Mon, 28 Sep 2026 20:51:06 +0100
 Mon, 28 Sep 2026 21:06:25 +0100
 > In compose.yaml, add a podman service for running the tests, so that all the current commands which run manually from the CLI (e.g. `podman run --rm smart-parking-lot uv run python manage.py ...`) can be run from that container instead;
 ----
+
+Mon, 28 Sep 2026 21:28:08 +0100
+> I modified compose.yaml by hand; read and ack;
+----

@@ -12,7 +12,12 @@ services:
       - ./data:/app/data:Z
   test:
     <<: *django-service
-    profiles:
-      - tools
+    profiles: [tools]
     ports: []
     command: ["uv", "run", "python", "manage.py", "test"]
+
+  migrate:
+    <<: *django-service
+    profiles: [tools]
+    ports: []
+    command: ["uv", "run", "python", "manage.py", "migrate"]

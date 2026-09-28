@@ -42,3 +42,7 @@ Mon, 28 Sep 2026 19:49:53 +0100
 Mon, 28 Sep 2026 20:07:44 +0100
 > Add Task-1.4: add a compose yaml file which encapsulates the current container infra
 ----
+
+Mon, 28 Sep 2026 20:48:15 +0100
+> add Task-1.5 for updating python to 3.14-slim and django to 6.1
+----

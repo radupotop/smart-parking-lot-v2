@@ -27,6 +27,21 @@ class SpotType(models.TextChoices):
     LARGE = "large", "Large"
 
 
+class SessionStatus(models.TextChoices):
+    """Lifecycle states for a parking ticket/session."""
+
+    OPEN = "open", "Open"
+    CLOSED = "closed", "Closed"
+
+
+class RatePolicy(models.TextChoices):
+    """Pricing policies evaluated for each billable session."""
+
+    STANDARD = "standard", "Standard"
+    EARLY_BIRD = "early_bird", "Early Bird"
+    NIGHT_OWL = "night_owl", "Night Owl"
+
+
 class Customer(models.Model):
     loyalty_tier = models.CharField(
         max_length=16,
@@ -91,3 +106,82 @@ class SpotTypeVehicleCompatibility(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_spot_type_display()} -> {self.get_vehicle_type_display()}"
+
+
+class ParkingSession(models.Model):
+    vehicle = models.ForeignKey(
+        Vehicle,
+        on_delete=models.PROTECT,
+        related_name="parking_sessions",
+    )
+    spot = models.ForeignKey(
+        ParkingSpot,
+        on_delete=models.PROTECT,
+        related_name="parking_sessions",
+    )
+    customer = models.ForeignKey(
+        Customer,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="parking_sessions",
+    )
+    entered_at = models.DateTimeField()
+    exited_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(
+        max_length=16,
+        choices=SessionStatus.choices,
+        default=SessionStatus.OPEN,
+    )
+    loyalty_tier_snapshot = models.CharField(
+        max_length=16,
+        choices=LoyaltyTier.choices,
+        default=LoyaltyTier.NONE,
+    )
+    charged_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    selected_evaluation = models.ForeignKey(
+        "RateEvaluation",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"Session {self.pk or 'unsaved'} for {self.vehicle.registration}"
+
+
+class RateEvaluation(models.Model):
+    session = models.ForeignKey(
+        ParkingSession,
+        on_delete=models.CASCADE,
+        related_name="rate_evaluations",
+    )
+    policy = models.CharField(max_length=32, choices=RatePolicy.choices)
+    applicable = models.BooleanField(default=False)
+    amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    details = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"{self.get_policy_display()} evaluation for session {self.session_id}"
+
+
+class PublicHoliday(models.Model):
+    date = models.DateField(unique=True)
+    name = models.CharField(max_length=128)
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.date})"

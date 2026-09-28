@@ -26,3 +26,7 @@ Mon, 28 Sep 2026 16:59:31 +0100
 Mon, 28 Sep 2026 17:01:50 +0100
 > Add the required sub-tasks in the backlog. also the ticket about Podman containers seems to be missing;
 ----
+
+Mon, 28 Sep 2026 17:13:23 +0100
+> Add a task-0 for bootstrapping a venv using uv; use `uv venv --seed --clear --no-managed-python`; this should be inside the `src/` dir; and it should also include a `pyproject.toml` file
+----

@@ -4,11 +4,13 @@ title: Bootstrap Django DRF application shell
 status: To Do
 assignee: []
 created_date: '2026-09-28 15:51'
+updated_date: '2026-09-28 16:14'
 labels:
   - backend
   - django
   - setup
-dependencies: []
+dependencies:
+  - TASK-6
 references:
   - specs/SRS2.md
 priority: high

@@ -222,3 +222,11 @@ Tue, 29 Sep 2026 13:49:04 +0000
 Tue, 29 Sep 2026 13:53:17 +0000
 > re-run all tests with verbose mode on;
 ----
+
+Tue, 29 Sep 2026 23:44:36 +0000
+> read the @specs/ and the @src/ for context; always use `fd -e py` or `fd -e md` instead of classic `find`; e.g. `fd -e py -X bat` to list the contents of all Python files;
+----
+
+Tue, 29 Sep 2026 23:48:22 +0000
+> Read @QWEN_REVIEW.md and add a new backlog task for Issue 2: Holiday lookup N+1. is_weekday_excluding_public_holidays() runs a DB query per hourly block per date; SRS1 explicitly suggested caching holidays outside the loop. Fine at this scale, but worth fixing if a 48h stay is common.
+----

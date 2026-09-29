@@ -170,3 +170,7 @@ Tue, 29 Sep 2026 03:47:28 +0000
 Tue, 29 Sep 2026 11:10:51 +0000
 > add a new task to the backlog; we should add api tests for each api endpoint. add a separate sub-task for each endpoint with the relevant description; not more than 5 tests per endpoint
 ----
+
+Tue, 29 Sep 2026 11:24:09 +0000
+> ok start work on the first sub-task of Task-7 in a subagent; always write code from a subagent; write tests in a new python file, do not reuse an existing one; write subagent instructions to a temp file first (mktemp instruct-XXXXXXXX), and append these instructions to the subtask Implementation Notes before launching the subagent
+----

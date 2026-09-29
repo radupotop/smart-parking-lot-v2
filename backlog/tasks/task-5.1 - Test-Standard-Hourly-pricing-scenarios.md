@@ -1,11 +1,11 @@
 ---
 id: TASK-5.1
 title: Test Standard Hourly pricing scenarios
-status: In Progress
+status: Done
 assignee:
   - '@Qwen'
 created_date: '2026-09-28 16:03'
-updated_date: '2026-09-29 01:14'
+updated_date: '2026-09-29 01:16'
 labels:
   - backend
   - tests
@@ -28,13 +28,13 @@ Standard Hourly has the densest edge-case surface: rounded floating blocks, prog
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Tests cover upward rounding to full hours.
-- [ ] #2 Tests cover first-hour, second-hour, and subsequent-hour rates.
-- [ ] #3 Tests cover floating hourly blocks that start at the entry timestamp.
-- [ ] #4 Tests cover partial peak overlap causing the whole block to receive the peak multiplier.
-- [ ] #5 Tests cover inclusive peak starts and exclusive peak ends.
-- [ ] #6 Tests cover public holidays disabling weekday peak surcharge behavior.
-- [ ] #7 Tests cover vehicle multipliers for motorcycle, car, and bus under Standard Hourly.
+- [x] #1 Tests cover upward rounding to full hours.
+- [x] #2 Tests cover first-hour, second-hour, and subsequent-hour rates.
+- [x] #3 Tests cover floating hourly blocks that start at the entry timestamp.
+- [x] #4 Tests cover partial peak overlap causing the whole block to receive the peak multiplier.
+- [x] #5 Tests cover inclusive peak starts and exclusive peak ends.
+- [x] #6 Tests cover public holidays disabling weekday peak surcharge behavior.
+- [x] #7 Tests cover vehicle multipliers for motorcycle, car, and bus under Standard Hourly.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -79,4 +79,12 @@ All tests (existing 86 + your new ones) must pass and check must be clean. Fix a
 
 FINAL REPORT:
 Summarize: which ACs were already partially covered before, files created, test count added, any suspected pricing bugs found (do not fix), and the final check + test output.
+
+Finalization verification (2026-09-28): 'uv run python manage.py check' -> no issues. 'uv run python manage.py test' -> Ran 110 tests, OK. AC evidence from parking.test_standard_hourly (24 tests, all ok): AC1 StandardHourlyRoundingTests (4 tests incl. exact whole hours no over-round); AC2 StandardHourlyBaseRateTests (// tiers + multi-hour all-three); AC3 StandardHourlyFloatingBlockTests (entry+N boundaries, PRD 06:30 example); AC4 StandardHourlyPartialPeakOverlapTests (whole-block 1.5x on partial overlap); AC5 StandardHourlyPeakBoundaryTests (inclusive starts, exclusive ends, morning + evening windows); AC6 StandardHourlyPeakDayRulesTests (holiday disables peak, weekend flat); AC7 StandardHourlyVehicleMultiplierTests (0.8/1.0/2.0 + peak combination). No pricing bugs found; cosmetic note: audit details serialize combined multipliers as '1.50'/'0.80' vs raw '1.5'.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added 24 focused Standard Hourly tests in parking/test_standard_hourly.py covering all seven acceptance criteria: upward rounding, progressive // rates, floating entry-anchored hourly blocks, whole-block peak multiplier on partial overlap, inclusive peak starts / exclusive peak ends, public-holiday and weekend peak exclusion, and motorcycle/car/bus multipliers. Test-only change; no pricing bugs found. Verified with full suite at 110 tests OK and manage.py check clean via direct 'uv run python manage.py' (no Podman).
+<!-- SECTION:FINAL_SUMMARY:END -->

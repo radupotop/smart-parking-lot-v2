@@ -166,3 +166,7 @@ Tue, 29 Sep 2026 03:46:20 +0000
 Tue, 29 Sep 2026 03:47:28 +0000
 > nice; also backlog browser opens the webui, add that to readme
 ----
+
+Tue, 29 Sep 2026 11:10:51 +0000
+> add a new task to the backlog; we should add api tests for each api endpoint. add a separate sub-task for each endpoint with the relevant description; not more than 5 tests per endpoint
+----

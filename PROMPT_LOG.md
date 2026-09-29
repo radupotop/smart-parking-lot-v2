@@ -102,3 +102,15 @@ Tue, 29 Sep 2026 00:16:17 +0000
 Tue, 29 Sep 2026 00:19:46 +0000
 > continue with TASK-4.2 in a subagent;
 ----
+
+Tue, 29 Sep 2026 00:39:38 +0000
+> finalize task-4
+----
+
+Tue, 29 Sep 2026 00:42:53 +0000
+> always use a sub-agent to write code;
+----
+
+Tue, 29 Sep 2026 00:42:53 +0000
+> DO NOT delete the file you wrote; just carry on
+----

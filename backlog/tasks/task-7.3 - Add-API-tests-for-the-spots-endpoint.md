@@ -1,11 +1,11 @@
 ---
 id: TASK-7.3
 title: Add API tests for the spots endpoint
-status: Done
+status: In Progress
 assignee:
   - '@qwen'
 created_date: '2026-09-29 11:09'
-updated_date: '2026-09-29 12:33'
+updated_date: '2026-09-29 12:44'
 labels:
   - backend
   - api
@@ -29,7 +29,7 @@ Cover /api/spots/ (ParkingSpotViewSet, full CRUD). The endpoint manages parking 
 - [x] #2 Listing and retrieving spots returns the persisted records
 - [x] #3 A duplicate level and number pair is rejected with 400
 - [x] #4 Invalid spot type or missing fields are rejected with 400
-- [x] #5 The module contains no more than 5 tests
+- [ ] #5 The module contains no more than 8 tests (original 4 plus at most 4 conflict tests)
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -45,6 +45,10 @@ Cover /api/spots/ (ParkingSpotViewSet, full CRUD). The endpoint manages parking 
 
 <!-- SECTION:NOTES:BEGIN -->
 Created src/parking/tests/test_api_spots.py (via subagent) with exactly 4 tests: create 201 + representation, list/retrieve, duplicate (level, number) 400, invalid spot_type/missing fields 400. Targeted run: 4/4 OK. Full suite: 159/159 OK.
+
+User-directed scope extension: add up to 4 further tests exercising conflict scenarios (update collision on (level, number), delete blocked by PROTECT session FK, delete of unreferenced spot, out-of-range field values). AC #5 cap raised from 5 to 8 tests.
+
+Added 4 conflict tests (8 total). 7/8 pass. test_delete_spot_referenced_by_session_is_rejected exposes a real view bug: ParkingSpotViewSet.destroy does not catch ProtectedError from the PROTECT FK ParkingSession.spot, so DELETE returns 500 instead of 400. Awaiting user decision: fix view (scope expansion / follow-up task) or adjust the test.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

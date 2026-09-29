@@ -1,9 +1,10 @@
 """API tests for the /api/spots/ endpoint (full CRUD)."""
 
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from parking.models import ParkingSpot, SpotType
+from parking.models import ParkingSession, ParkingSpot, SpotType, Vehicle, VehicleType
 
 
 class SpotCrudApiTestBase(APITestCase):
@@ -91,3 +92,64 @@ class SpotReadApiTests(SpotCrudApiTestBase):
         self.assertEqual(retrieve_response.data["spot_type"], SpotType.LARGE)
         self.assertIn("created_at", retrieve_response.data)
         self.assertIn("updated_at", retrieve_response.data)
+
+
+class SpotConflictApiTests(SpotCrudApiTestBase):
+    def test_update_spot_rejects_colliding_level_and_number(self) -> None:
+        ParkingSpot.objects.create(
+            level=2,
+            number="B1",
+            spot_type=SpotType.LARGE,
+        )
+
+        response = self.client.patch(
+            f"/api/spots/{self.spot.pk}/",
+            {"level": 2, "number": "B1"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.spot.refresh_from_db()
+        self.assertEqual(self.spot.level, 1)
+        self.assertEqual(self.spot.number, "A1")
+
+    def test_delete_spot_referenced_by_session_is_rejected(self) -> None:
+        vehicle = Vehicle.objects.create(
+            registration="CONF-1",
+            vehicle_type=VehicleType.CAR,
+        )
+        ParkingSession.objects.create(
+            vehicle=vehicle,
+            spot=self.spot,
+            entered_at=timezone.now(),
+        )
+
+        response = self.client.delete(f"/api/spots/{self.spot.pk}/")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(ParkingSpot.objects.filter(pk=self.spot.pk).exists())
+
+    def test_delete_spot_without_sessions_succeeds(self) -> None:
+        response = self.client.delete(f"/api/spots/{self.spot.pk}/")
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(ParkingSpot.objects.count(), 0)
+
+    def test_create_spot_rejects_out_of_range_level_or_oversized_number(self) -> None:
+        bad_level = self.client.post(
+            "/api/spots/",
+            {"level": -1, "number": "D1", "spot_type": SpotType.COMPACT},
+            format="json",
+        )
+        self.assertEqual(bad_level.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("level", bad_level.data)
+
+        bad_number = self.client.post(
+            "/api/spots/",
+            {"level": 4, "number": "D" + "1" * 16, "spot_type": SpotType.COMPACT},
+            format="json",
+        )
+        self.assertEqual(bad_number.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("number", bad_number.data)
+
+        self.assertEqual(ParkingSpot.objects.count(), 1)

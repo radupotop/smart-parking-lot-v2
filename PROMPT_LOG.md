@@ -94,3 +94,7 @@ Mon, 28 Sep 2026 23:44:08 +0000
 Tue, 29 Sep 2026 00:11:26 +0000
 > yes go on; also run tests; uv run python manage.py check and uv run python manage.py test
 ----
+
+Tue, 29 Sep 2026 00:16:17 +0000
+> re-run the tests in a subagent just to see that it works;
+----

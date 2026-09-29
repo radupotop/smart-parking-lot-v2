@@ -1,11 +1,11 @@
 ---
 id: TASK-5.2
 title: Test special rates and best-value selection
-status: In Progress
+status: Done
 assignee:
   - '@Qwen'
 created_date: '2026-09-28 16:03'
-updated_date: '2026-09-29 01:21'
+updated_date: '2026-09-29 02:19'
 labels:
   - backend
   - tests
@@ -28,12 +28,12 @@ Early Bird and Night Owl depend on precise time-window boundaries, loyalty disco
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Tests cover Early Bird entry and exit window boundaries.
-- [ ] #2 Tests cover Night Owl entry window, next-consecutive-day exit window, and invalid non-consecutive exits.
-- [ ] #3 Tests cover SILVER, GOLD, PLATINUM, and NONE loyalty outcomes for specials.
-- [ ] #4 Tests cover vehicle multipliers for motorcycle, car, and bus under flat-rate specials.
-- [ ] #5 Tests cover stays longer than 24 hours invalidating Early Bird and Night Owl.
-- [ ] #6 Tests cover cases where Standard Hourly and a special both apply and the lowest amount is selected.
+- [x] #1 Tests cover Early Bird entry and exit window boundaries.
+- [x] #2 Tests cover Night Owl entry window, next-consecutive-day exit window, and invalid non-consecutive exits.
+- [x] #3 Tests cover SILVER, GOLD, PLATINUM, and NONE loyalty outcomes for specials.
+- [x] #4 Tests cover vehicle multipliers for motorcycle, car, and bus under flat-rate specials.
+- [x] #5 Tests cover stays longer than 24 hours invalidating Early Bird and Night Owl.
+- [x] #6 Tests cover cases where Standard Hourly and a special both apply and the lowest amount is selected.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -77,4 +77,12 @@ All tests (existing 110 + your new ones) must pass and check must be clean. Fix 
 
 FINAL REPORT:
 Summarize: which ACs were already partially covered before, files created, test count added, any suspected pricing bugs found (do not fix), and the final check + test output.
+
+Finalization verification (2026-09-29): 'uv run python manage.py check' -> no issues. 'uv run python manage.py test' -> Ran 142 tests, OK. AC evidence from parking/tests/test_special_rates.py (32 tests, all ok, run in subagent after test-package move): AC1 Early Bird boundary tests (0600/0559/0900 entry, 1530/1900 exit, cross-midnight rejected); AC2 Night Owl entry 1800/2359/1759, exit 0500/1000, same-day and two-days-later rejected; AC3 exact loyalty tier amounts for both specials; AC4 vehicle multipliers + combined loyalty math; AC5 24h+1s invalidates both specials, exactly-24h semantics documented; AC6 DB-backed best-value: special wins, standard wins, exact-tie policy-order tie-breaks with persisted evaluations. Note: all test modules moved to src/parking/tests/ package (git mv, history preserved); no production code changed.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added 32 special-rate and best-value tests (now in parking/tests/test_special_rates.py) covering all six acceptance criteria: Early Bird and Night Owl window boundaries with inclusive starts / exclusive ends, loyalty tier exact amounts, vehicle multipliers with combined math, 24h+1s invalidation of both specials, and DB-backed best-value selection with policy-order tie-breaks asserting persisted evaluations. Test-only change; no pricing bugs found. Verified with full suite at 142 tests OK and manage.py check clean via direct 'uv run python manage.py' (no Podman); test run executed in a subagent after relocating all test modules into the src/parking/tests/ package.
+<!-- SECTION:FINAL_SUMMARY:END -->

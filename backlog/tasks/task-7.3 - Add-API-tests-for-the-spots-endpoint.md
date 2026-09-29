@@ -1,11 +1,11 @@
 ---
 id: TASK-7.3
 title: Add API tests for the spots endpoint
-status: In Progress
+status: Done
 assignee:
   - '@qwen'
 created_date: '2026-09-29 11:09'
-updated_date: '2026-09-29 12:44'
+updated_date: '2026-09-29 12:53'
 labels:
   - backend
   - api
@@ -29,7 +29,7 @@ Cover /api/spots/ (ParkingSpotViewSet, full CRUD). The endpoint manages parking 
 - [x] #2 Listing and retrieving spots returns the persisted records
 - [x] #3 A duplicate level and number pair is rejected with 400
 - [x] #4 Invalid spot type or missing fields are rejected with 400
-- [ ] #5 The module contains no more than 8 tests (original 4 plus at most 4 conflict tests)
+- [x] #5 The module contains no more than 8 tests (original 4 plus at most 4 conflict tests)
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -49,10 +49,12 @@ Created src/parking/tests/test_api_spots.py (via subagent) with exactly 4 tests:
 User-directed scope extension: add up to 4 further tests exercising conflict scenarios (update collision on (level, number), delete blocked by PROTECT session FK, delete of unreferenced spot, out-of-range field values). AC #5 cap raised from 5 to 8 tests.
 
 Added 4 conflict tests (8 total). 7/8 pass. test_delete_spot_referenced_by_session_is_rejected exposes a real view bug: ParkingSpotViewSet.destroy does not catch ProtectedError from the PROTECT FK ParkingSession.spot, so DELETE returns 500 instead of 400. Awaiting user decision: fix view (scope expansion / follow-up task) or adjust the test.
+
+Conflict tests now fully green after TASK-8 fixed the view's ProtectedError handling: module 8/8 OK, full suite 163/163 OK.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Added src/parking/tests/test_api_spots.py covering /api/spots/ via the DRF test client: valid create (201 + representation), list/retrieve of persisted records, duplicate (level, number) rejection (400), and invalid spot_type/missing fields rejection (400). Module contains exactly 4 tests, within the 5-test limit. Verified with 'uv run python manage.py test' from src/: targeted run 4/4 OK, full suite 159/159 OK.
+Added src/parking/tests/test_api_spots.py covering /api/spots/ via the DRF test client: valid create (201), list/retrieve, duplicate (level, number) rejection (400), invalid spot_type/missing fields (400), plus 4 conflict tests (update collision 400, delete blocked by session 400 via TASK-8 view fix, delete of unreferenced spot 204, out-of-range values 400). Module contains exactly 8 tests. Verified with 'uv run python manage.py test' from src/: 8/8 OK, full suite 163/163 OK.
 <!-- SECTION:FINAL_SUMMARY:END -->

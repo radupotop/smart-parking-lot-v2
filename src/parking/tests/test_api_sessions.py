@@ -32,7 +32,7 @@ class SessionApiTestBase(APITestCase):
             number="S1",
             spot_type=SpotType.COMPACT,
         )
-        SpotTypeVehicleCompatibility.objects.create(
+        SpotTypeVehicleCompatibility.objects.get_or_create(
             spot_type=SpotType.COMPACT,
             vehicle_type=VehicleType.CAR,
         )
@@ -75,6 +75,27 @@ class SessionCreateApiTests(SessionApiTestBase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["customer"]["id"], self.customer.pk)
         self.assertIsNotNone(response.data["entered_at"])
+
+    def test_create_session_accepts_motorcycle_in_compact_spot_by_default(self) -> None:
+        motorcycle = Vehicle.objects.create(
+            registration="SES-MOTO",
+            vehicle_type=VehicleType.MOTORCYCLE,
+        )
+
+        response = self.client.post(
+            "/api/sessions/",
+            {
+                "vehicle": motorcycle.pk,
+                "spot": self.spot.pk,
+                "entered_at": "2026-10-03T11:00:00Z",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["vehicle"]["id"], motorcycle.pk)
+        self.assertEqual(response.data["vehicle"]["vehicle_type"], VehicleType.MOTORCYCLE)
+        self.assertEqual(response.data["spot"]["spot_type"], SpotType.COMPACT)
 
     def test_create_session_with_explicit_customer_uses_its_tier(self) -> None:
         silver_customer = Customer.objects.create(loyalty_tier=LoyaltyTier.SILVER)

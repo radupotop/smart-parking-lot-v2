@@ -33,7 +33,7 @@ class ParkingAdminInspectionTests(TestCase):
         self.spot = ParkingSpot.objects.create(
             level=1, number="A1", spot_type="compact"
         )
-        SpotTypeVehicleCompatibility.objects.create(
+        SpotTypeVehicleCompatibility.objects.get_or_create(
             spot_type="compact", vehicle_type=VehicleType.CAR
         )
         entered_at = timezone.now() - timedelta(hours=1)

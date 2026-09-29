@@ -1,8 +1,10 @@
 """Tests for the parking app."""
 
+import importlib
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
+from django.apps import apps as django_apps
 from django.contrib import admin as django_admin
 from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase, TestCase
@@ -124,18 +126,52 @@ class ParkingFoundationModelTests(TestCase):
 
     def test_spot_type_vehicle_compatibility_is_unique_together(self) -> None:
         SpotTypeVehicleCompatibility.objects.create(
-            spot_type=SpotType.COMPACT,
-            vehicle_type=VehicleType.CAR,
-        )
-        SpotTypeVehicleCompatibility.objects.create(
-            spot_type=SpotType.COMPACT,
+            spot_type=SpotType.LARGE,
             vehicle_type=VehicleType.MOTORCYCLE,
         )
 
         with self.assertRaises(IntegrityError), transaction.atomic():
             SpotTypeVehicleCompatibility.objects.create(
-                spot_type=SpotType.COMPACT,
-                vehicle_type=VehicleType.CAR,
+                spot_type=SpotType.LARGE,
+                vehicle_type=VehicleType.MOTORCYCLE,
+            )
+
+    def test_default_spot_type_vehicle_compatibilities_are_seeded(self) -> None:
+        expected_pairs = {
+            (SpotType.COMPACT, VehicleType.MOTORCYCLE),
+            (SpotType.COMPACT, VehicleType.CAR),
+            (SpotType.LARGE, VehicleType.BUS),
+        }
+
+        actual_pairs = set(
+            SpotTypeVehicleCompatibility.objects.filter(
+                spot_type__in={SpotType.COMPACT, SpotType.LARGE},
+                vehicle_type__in={
+                    VehicleType.MOTORCYCLE,
+                    VehicleType.CAR,
+                    VehicleType.BUS,
+                },
+            ).values_list("spot_type", "vehicle_type")
+        )
+
+        self.assertTrue(expected_pairs.issubset(actual_pairs))
+
+    def test_default_spot_type_vehicle_compatibility_seed_is_idempotent(self) -> None:
+        migration = importlib.import_module(
+            "parking.migrations.0003_seed_default_spot_vehicle_compatibilities"
+        )
+        before_count = SpotTypeVehicleCompatibility.objects.count()
+
+        migration.seed_default_compatibilities(django_apps, None)
+
+        self.assertEqual(SpotTypeVehicleCompatibility.objects.count(), before_count)
+        for spot_type, vehicle_type in migration.DEFAULT_COMPATIBILITIES:
+            self.assertEqual(
+                SpotTypeVehicleCompatibility.objects.filter(
+                    spot_type=spot_type,
+                    vehicle_type=vehicle_type,
+                ).count(),
+                1,
             )
 
     def test_model_string_representations_are_readable(self) -> None:
@@ -150,7 +186,7 @@ class ParkingFoundationModelTests(TestCase):
             number="B12",
             spot_type=SpotType.LARGE,
         )
-        compatibility = SpotTypeVehicleCompatibility.objects.create(
+        compatibility, _ = SpotTypeVehicleCompatibility.objects.get_or_create(
             spot_type=SpotType.LARGE,
             vehicle_type=VehicleType.BUS,
         )

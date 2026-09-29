@@ -44,7 +44,7 @@ class ParkingServiceTestBase(TestCase):
             number="SVC-01",
             spot_type=SpotType.COMPACT,
         )
-        SpotTypeVehicleCompatibility.objects.create(
+        SpotTypeVehicleCompatibility.objects.get_or_create(
             spot_type=SpotType.COMPACT,
             vehicle_type=VehicleType.CAR,
         )

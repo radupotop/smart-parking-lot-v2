@@ -71,3 +71,21 @@ backlog task list   # list all tasks
 backlog board       # open the kanban board
 backlog browser     # open the backlog web UI
 ```
+
+
+## Debugging
+
+App image
+
+```sh
+podman compose run --rm app uv run python manage.py migrate -v2
+podman compose run --rm app uv run python manage.py showmigrations
+podman compose run --rm app uv run python manage.py createsuperuser
+podman compose run --rm app uv run python manage.py shell
+```
+
+Test image
+
+```sh
+podman compose run --rm test uv run python manage.py test -v2
+```

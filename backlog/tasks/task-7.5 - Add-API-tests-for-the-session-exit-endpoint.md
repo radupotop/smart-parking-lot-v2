@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@qwen'
 created_date: '2026-09-29 11:10'
-updated_date: '2026-09-29 13:44'
+updated_date: '2026-09-29 13:45'
 labels:
   - backend
   - api
@@ -58,6 +58,8 @@ User raised the test cap from 5 to 8 for this task. Note: AC #4 says a missing s
 Research: the stay_longer_than_24_hours inapplicability check lives in _SpecialFlatRatePolicy only; StandardHourlyPolicy has no 24h cap, so a 25h stay bills normally (200). The 422 no-policy path is pinned by the exited_at-before-entered_at test. Fixture entered_at 2026-10-03 is after the current system date (2026-09-29), so default-now exits against it yield 422.
 
 Final: 8 tests in src/parking/tests/test_api_session_exit.py — success exit with charge/evaluations, default exited_at, invalid exited_at 400, exit-before-entry 422 (stays open), >24h stay charged by Standard Hourly (24h cap only invalidates specials), idempotent re-exit, unknown PK 404, GET/PUT 405. Targeted 8/8 OK; full suite 179/179 OK.
+
+----
 
 Create a new file at src/parking/tests/test_api_session_exit.py in this repository.
 
@@ -141,6 +143,8 @@ Requirements:
   SpotType) rather than raw strings wherever exposed.
 - Do not modify any other file. Do not run the test suite.
 
+----
+
 Fix 3 failing tests in the existing file src/parking/tests/test_api_session_exit.py in this repository. Do not change any other test or file.
 
 Background: the first test run produced 3 failures.
@@ -178,6 +182,8 @@ the stay.
 
 Keep the module at exactly 8 tests and keep all conventions intact. Do not
 run the test suite.
+
+----
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

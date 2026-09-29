@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@Qwen'
 created_date: '2026-09-29 11:09'
-updated_date: '2026-09-29 12:18'
+updated_date: '2026-09-29 13:47'
 labels:
   - backend
   - api
@@ -65,6 +65,8 @@ Requirements:
 5. If a test fails because of a genuine application bug (not a test bug), do NOT change application code — stop and report the bug.
 
 Report back: the exact file created, the list of test method names, the number of tests in the module, and the full pass/fail summary of both test runs.
+
+----
 
 You are implementing backlog task TASK-7.2: "Add API tests for the vehicles endpoint" for the Django REST Framework project in /workspace/smart-parking-lot-v2 (Python project root: /workspace/smart-parking-lot-v2/src).
 

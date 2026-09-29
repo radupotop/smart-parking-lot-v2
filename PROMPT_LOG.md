@@ -158,3 +158,7 @@ Tue, 29 Sep 2026 03:06:32 +0000
 Tue, 29 Sep 2026 03:37:33 +0000
 > Dump this review to QWEN_REVIEW.md
 ----
+
+Tue, 29 Sep 2026 03:46:20 +0000
+> git mv the src/README.md file to ./README.md and update it with: a short description; the required tools to run this project (both via podman and manual uv run); also mention the backlog.md package which has the backlog tool required to view the backlog; don't search the web for backlog; just say it can be installed with npm i -g backlog.md
+----

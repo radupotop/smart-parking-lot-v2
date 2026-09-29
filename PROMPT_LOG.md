@@ -182,3 +182,11 @@ Tue, 29 Sep 2026 12:11:17 +0000
 Tue, 29 Sep 2026 12:18:07 +0000
 > go on with task 7.2
 ----
+
+Tue, 29 Sep 2026 12:25:08 +0000
+> read the SKILL.md files you have available
+----
+
+Tue, 29 Sep 2026 12:26:41 +0000
+> read the @QWEN_REVIEW.md and then carry on with task-7.3
+----

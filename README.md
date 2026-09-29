@@ -69,4 +69,5 @@ Then, from the repository root:
 ```bash
 backlog task list   # list all tasks
 backlog board       # open the kanban board
+backlog browser     # open the backlog web UI
 ```

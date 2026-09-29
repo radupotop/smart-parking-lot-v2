@@ -2,8 +2,10 @@
 id: TASK-5
 title: Add core unit test coverage
 status: To Do
-assignee: []
+assignee:
+  - '@Qwen'
 created_date: '2026-09-28 15:52'
+updated_date: '2026-09-28 23:45'
 labels:
   - backend
   - tests

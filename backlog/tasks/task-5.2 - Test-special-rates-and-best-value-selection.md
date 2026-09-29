@@ -2,8 +2,10 @@
 id: TASK-5.2
 title: Test special rates and best-value selection
 status: To Do
-assignee: []
+assignee:
+  - '@Qwen'
 created_date: '2026-09-28 16:03'
+updated_date: '2026-09-28 23:45'
 labels:
   - backend
   - tests

@@ -2,8 +2,10 @@
 id: TASK-5.1
 title: Test Standard Hourly pricing scenarios
 status: To Do
-assignee: []
+assignee:
+  - '@Qwen'
 created_date: '2026-09-28 16:03'
+updated_date: '2026-09-28 23:45'
 labels:
   - backend
   - tests

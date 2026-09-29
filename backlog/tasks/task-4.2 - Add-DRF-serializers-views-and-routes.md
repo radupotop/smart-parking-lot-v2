@@ -2,8 +2,10 @@
 id: TASK-4.2
 title: Add DRF serializers views and routes
 status: To Do
-assignee: []
+assignee:
+  - '@Qwen'
 created_date: '2026-09-28 16:03'
+updated_date: '2026-09-28 23:45'
 labels:
   - backend
   - api

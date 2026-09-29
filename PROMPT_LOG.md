@@ -126,3 +126,11 @@ Tue, 29 Sep 2026 01:14:01 +0000
 Tue, 29 Sep 2026 01:16:10 +0000
 > yap finish it
 ----
+
+Tue, 29 Sep 2026 01:19:41 +0000
+> Run TASK-5.2 in a subagent; append the instructions to the task Implementation Notes _before_ giving them to the subagent. you can use a tmpfile with mktemp
+----
+
+Tue, 29 Sep 2026 01:38:45 +0000
+> I think the subagent didn't do any work due to failing instructions; just include the instructions with subagent --files /tmp/tmp.qh9P9ppn5J
+----

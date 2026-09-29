@@ -198,3 +198,7 @@ Tue, 29 Sep 2026 12:38:03 +0000
 Tue, 29 Sep 2026 12:48:19 +0000
 > git commit the current state; then launch a subagent to fix the view: A) I create a small follow-up task (e.g. "Return 400 when deleting a spot referenced by a session") and fix the view — the test then passes as written
 ----
+
+Tue, 29 Sep 2026 13:09:40 +0000
+> Carry on with task-7.4 from the backlog; you can write up to 8 tests for this one;
+----

@@ -20,6 +20,7 @@ Error mapping:
   422 with a readable detail message; the session remains open.
 """
 
+from django.db.models.deletion import ProtectedError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -52,10 +53,32 @@ class VehicleViewSet(viewsets.ModelViewSet):
 
 
 class ParkingSpotViewSet(viewsets.ModelViewSet):
-    """CRUD for parking spots."""
+    """CRUD for parking spots.
+
+    Delete is overridden: the ``ParkingSession.spot`` foreign key uses
+    ``on_delete=models.PROTECT``, so deleting a spot referenced by any
+    session raises ``ProtectedError``. That is surfaced as a 400 with a
+    readable detail message instead of a 500, and the spot is kept.
+    """
 
     queryset = ParkingSpot.objects.all().order_by("level", "number")
     serializer_class = ParkingSpotSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            instance.delete()
+        except ProtectedError:
+            return Response(
+                {
+                    "detail": (
+                        "Cannot delete a spot that is referenced by "
+                        "parking sessions."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class SessionViewSet(viewsets.ModelViewSet):

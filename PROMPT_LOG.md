@@ -210,3 +210,7 @@ Tue, 29 Sep 2026 13:19:52 +0000
 Tue, 29 Sep 2026 13:26:28 +0000
 > Carry on with task-7.5 from the backlog; you can write up to 8 tests for this one;
 ----
+
+Tue, 29 Sep 2026 13:43:14 +0000
+> In TASK-7.5, append /tmp/instruct-7GSXwigw and /tmp/instruct-Gr9MKpYb as 'Implementation Notes'
+----

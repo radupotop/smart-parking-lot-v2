@@ -142,3 +142,11 @@ Tue, 29 Sep 2026 02:15:16 +0000
 Tue, 29 Sep 2026 02:25:21 +0000
 > run TASK-5.3 in a subagent
 ----
+
+Tue, 29 Sep 2026 03:02:08 +0000
+> run the tests in a subagent; subagent progress is written to stderr; also capture stderr from subagent;
+----
+
+Tue, 29 Sep 2026 03:03:08 +0000
+> run the tests in a subagent; capture stderr with 2>&1 | tail is fine; allow tail to be longer, i.e. 100 lines
+----

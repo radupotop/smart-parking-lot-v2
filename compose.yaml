@@ -14,7 +14,7 @@ services:
     <<: *django-service
     profiles: [tools]
     ports: []
-    command: ["uv", "run", "python", "manage.py", "test"]
+    command: ["uv", "run", "python", "manage.py", "test", "-v", "2"]
 
   migrate:
     <<: *django-service

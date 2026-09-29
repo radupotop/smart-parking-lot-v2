@@ -1,11 +1,11 @@
 ---
 id: TASK-5.3
 title: Test model workflow and audit persistence
-status: In Progress
+status: Done
 assignee:
   - '@Qwen'
 created_date: '2026-09-28 16:03'
-updated_date: '2026-09-29 02:27'
+updated_date: '2026-09-29 03:07'
 labels:
   - backend
   - tests
@@ -29,12 +29,12 @@ The relational model and services need coverage around constraints, session life
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Tests cover model constraints for unique vehicle registration, parking spot identity, compatibility pairs, and public holiday dates.
-- [ ] #2 Tests cover entry workflow creating an open session with loyalty tier snapshot.
-- [ ] #3 Tests cover incompatible vehicle and spot type rejection.
-- [ ] #4 Tests cover exit workflow closing a session and storing charged amount and selected evaluation.
-- [ ] #5 Tests cover one RateEvaluation record per considered policy with expected applicability and details.
-- [ ] #6 The project test command runs all unit tests successfully.
+- [x] #1 Tests cover model constraints for unique vehicle registration, parking spot identity, compatibility pairs, and public holiday dates.
+- [x] #2 Tests cover entry workflow creating an open session with loyalty tier snapshot.
+- [x] #3 Tests cover incompatible vehicle and spot type rejection.
+- [x] #4 Tests cover exit workflow closing a session and storing charged amount and selected evaluation.
+- [x] #5 Tests cover one RateEvaluation record per considered policy with expected applicability and details.
+- [x] #6 The project test command runs all unit tests successfully.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -78,4 +78,12 @@ All tests (existing 142 + your new ones) must pass and check must be clean. Fix 
 
 FINAL REPORT:
 Summarize: which ACs were already partially covered before (with existing test names), files created, test count added, any suspected bugs found (do not fix), and the exact final check + test output (test count + OK/FAILED).
+
+Finalization verification (2026-09-29): 'uv run python manage.py check' -> no issues. 'uv run python manage.py test' -> Ran 145 tests, OK (run in subagent with stderr progress captured). AC evidence: AC1 existing ParkingFoundationModelTests constraint tests (tests.py) + API duplicate-rejection tests (test_api.py); AC2 test_services.py entry/loyalty-snapshot tests; AC3 test_services.py incompatible + missing-compatibility-row tests; AC4 new parking/tests/test_model_workflow.py ExitWorkflowSelectionTests (cheapest-applicable selection via exit workflow) + test_services.py exit persistence test; AC5 test_model_workflow.py ExitWorkflowAuditPersistenceTests (one RateEvaluation per policy, flags/amounts/details, idempotent re-exit); AC6 full suite green at 145 tests.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Closed the remaining model-workflow and audit-persistence coverage gaps with 3 DB-backed tests in parking/tests/test_model_workflow.py: exit workflow selecting the cheapest applicable evaluation (Early Bird and Night Owl cases) with closed status, exited_at, charged_amount, and selected_evaluation, and exactly one RateEvaluation row per considered policy with expected applicability flags, amounts, and details, including idempotent re-exit without duplicated audit rows. Constraint, entry-snapshot, and compatibility-rejection ACs were already covered by existing tests and were not duplicated. Verified with full suite at 145 tests OK and manage.py check clean via direct 'uv run python manage.py' in a subagent (no Podman).
+<!-- SECTION:FINAL_SUMMARY:END -->

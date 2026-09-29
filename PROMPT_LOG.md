@@ -190,3 +190,11 @@ Tue, 29 Sep 2026 12:25:08 +0000
 Tue, 29 Sep 2026 12:26:41 +0000
 > read the @QWEN_REVIEW.md and then carry on with task-7.3
 ----
+
+Tue, 29 Sep 2026 12:38:03 +0000
+> Add additional tests for task-7.3 `src/parking/tests/test_api_spots.py` to exercise possible conflicts; not more than 4 more tests;
+----
+
+Tue, 29 Sep 2026 12:48:19 +0000
+> git commit the current state; then launch a subagent to fix the view: A) I create a small follow-up task (e.g. "Return 400 when deleting a spot referenced by a session") and fix the view — the test then passes as written
+----

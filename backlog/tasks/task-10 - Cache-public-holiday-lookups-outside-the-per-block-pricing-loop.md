@@ -4,7 +4,7 @@ title: Cache public holiday lookups outside the per-block pricing loop
 status: To Do
 assignee: []
 created_date: '2026-09-29 23:49'
-updated_date: '2026-09-30 00:28'
+updated_date: '2026-09-30 00:30'
 labels: []
 dependencies: []
 references:
@@ -42,4 +42,11 @@ Relevant code: src/parking/pricing.py; focused tests: src/parking/tests/test_sta
 - [ ] #7 The standalone is_weekday_excluding_public_holidays() helper retains its existing date and datetime support and database-backed behavior when no preloaded set is supplied.
 - [ ] #8 Inputs rejected before hourly calculation cause no PublicHoliday query and retain their current not-applicable reason and details.
 - [ ] #9 Focused tests and the full Django test suite pass inside the Podman compose test service; record the commands and results when implementing the task.
+- [ ] #10 Holiday caching uses a plain Python set local to each evaluate() call, discarded after that call; no Django cache, Redis, process-wide cache, or policy-instance cache is used.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Cache mechanism: use a plain Python set of holiday dates held in a local variable within StandardHourlyPolicy.evaluate(). Build it once per evaluation and pass it to the block/date checks for in-memory membership tests. Discard it when evaluation finishes; the next evaluation fetches current holiday data again. Do not use Django's cache framework, Redis, a process-wide cache, or state retained on the policy instance. No cache backend configuration, expiry, or invalidation mechanism is required.
+<!-- SECTION:NOTES:END -->

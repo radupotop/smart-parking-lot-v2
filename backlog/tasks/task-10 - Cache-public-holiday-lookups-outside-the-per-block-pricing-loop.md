@@ -4,7 +4,7 @@ title: Cache public holiday lookups outside the per-block pricing loop
 status: To Do
 assignee: []
 created_date: '2026-09-29 23:49'
-updated_date: '2026-09-30 00:30'
+updated_date: '2026-09-30 00:34'
 labels: []
 dependencies: []
 references:
@@ -49,4 +49,14 @@ Relevant code: src/parking/pricing.py; focused tests: src/parking/tests/test_sta
 
 <!-- SECTION:NOTES:BEGIN -->
 Cache mechanism: use a plain Python set of holiday dates held in a local variable within StandardHourlyPolicy.evaluate(). Build it once per evaluation and pass it to the block/date checks for in-memory membership tests. Discard it when evaluation finishes; the next evaluation fetches current holiday data again. Do not use Django's cache framework, Redis, a process-wide cache, or state retained on the policy instance. No cache backend configuration, expiry, or invalidation mechanism is required.
+
+Why local memory addresses the N+1 issue:
+
+The repeated queries happen within one pricing calculation: each hourly block asks the database whether its date is a holiday. A 48-hour stay repeatedly queries the same few dates.
+
+Fetch all holiday dates relevant to the billed blocks with one database query, store them in a Python set, and check each block date against that set. Membership checks run in memory without database access. The number of holiday queries therefore drops from roughly one per weekday block to at most one per evaluation, regardless of the stay's length.
+
+Redis or Django cache would share cached data across separate evaluations or processes. That is unnecessary to resolve repetition within a single evaluation and would introduce cache expiry or invalidation rules when holidays change. Fetching once per evaluation ensures the next calculation sees current holiday data without those mechanisms.
+
+Strictly speaking, this approach is bulk fetching and local reuse rather than a persistent cache.
 <!-- SECTION:NOTES:END -->
